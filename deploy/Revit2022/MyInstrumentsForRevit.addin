@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RevitAddIns>
+  <AddIn Type="Application">
+    <Name>MyInstrumentsForRevit</Name>
+    <Assembly>%APPDATA%\Autodesk\Revit\Addins\2022\MyInstrumentsForRevit\MyInstrumentsForRevit.dll</Assembly>
+    <AddInId>8B5DE576-E577-47C7-9C17-A04D53EFA0F2</AddInId>
+    <FullClassName>MyInstrumentsForRevit.App</FullClassName>
+    <VendorId>MYIR</VendorId>
+    <VendorDescription>Personal Revit tools</VendorDescription>
+  </AddIn>
+  <AddIn Type="Application">
+    <Name>Context Filter</Name>
+    <Assembly>%APPDATA%\Autodesk\Revit\Addins\2022\MyInstrumentsForRevit\ContextFilter.Plugin.dll</Assembly>
+    <AddInId>B902787B-C8B5-4F67-B9C9-63E4DF5A0E41</AddInId>
+    <FullClassName>ContextFilter.Plugin.App</FullClassName>
+    <VendorId>CTXF</VendorId>
+    <VendorDescription>Context Filter for Revit</VendorDescription>
+  </AddIn>
+</RevitAddIns>

@@ -1,0 +1,16 @@
+{
+  "profiles": {
+    "Revit 2021": {
+      "commandName": "Executable",
+      "executablePath": "C:\\Program Files\\Autodesk\\Revit 2021\\Revit.exe",
+      "commandLineArgs": "",
+      "workingDirectory": "C:\\Program Files\\Autodesk\\Revit 2021"
+    },
+    "Revit 2022": {
+      "commandName": "Executable",
+      "executablePath": "C:\\Program Files\\Autodesk\\Revit 2022\\Revit.exe",
+      "commandLineArgs": "",
+      "workingDirectory": "C:\\Program Files\\Autodesk\\Revit 2022"
+    }
+  }
+}

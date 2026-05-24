@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net48</TargetFramework>
+    <AssemblyName>ContextFilter.Core</AssemblyName>
+    <RootNamespace>ContextFilter.Core</RootNamespace>
+  </PropertyGroup>
+</Project>

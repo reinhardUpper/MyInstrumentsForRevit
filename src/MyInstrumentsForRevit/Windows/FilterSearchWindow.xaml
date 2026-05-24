@@ -1,0 +1,56 @@
+<Window x:Class="MyInstrumentsForRevit.Windows.FilterSearchWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Добавить фильтр на вид"
+        Width="520"
+        Height="360"
+        MinWidth="420"
+        MinHeight="280"
+        WindowStartupLocation="CenterScreen"
+        ResizeMode="CanResize">
+    <Grid Margin="12">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <TextBox x:Name="SearchTextBox"
+                 Height="28"
+                 Margin="0,0,0,8"
+                 VerticalContentAlignment="Center"
+                 TextChanged="OnSearchTextChanged" />
+
+        <ListBox x:Name="FilterListBox"
+                 Grid.Row="1"
+                 DisplayMemberPath="Name"
+                 MouseDoubleClick="OnShowClick" />
+
+        <TextBlock x:Name="StatusTextBlock"
+                   Grid.Row="2"
+                   Margin="0,8,0,8"
+                   Foreground="#666666"
+                   Text="Введите часть имени фильтра и выберите строку." />
+
+        <StackPanel Grid.Row="3"
+                    Orientation="Horizontal"
+                    HorizontalAlignment="Right">
+            <Button Content="Скрыть"
+                    Width="90"
+                    Height="28"
+                    Margin="0,0,8,0"
+                    Click="OnHideClick" />
+            <Button Content="Показать"
+                    Width="90"
+                    Height="28"
+                    Margin="0,0,8,0"
+                    Click="OnShowClick" />
+            <Button Content="Отмена"
+                    Width="90"
+                    Height="28"
+                    IsCancel="True" />
+        </StackPanel>
+    </Grid>
+</Window>
+

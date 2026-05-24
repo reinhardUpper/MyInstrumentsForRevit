@@ -1,0 +1,210 @@
+<UserControl x:Class="ContextFilter.UI.Views.ContextFilterPaneView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:ContextFilter.UI.ViewModels"
+             MinWidth="280"
+             MinHeight="360"
+             Background="{StaticResource PaneBackgroundBrush}">
+    <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
+
+        <HierarchicalDataTemplate DataType="{x:Type vm:FilterNodeViewModel}"
+                                  ItemsSource="{Binding Children}">
+            <Button Command="{Binding DataContext.ActivateNodeCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                    CommandParameter="{Binding}"
+                    Style="{StaticResource NodeButtonStyle}">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="{Binding Name}"
+                                   Foreground="{StaticResource TextPrimaryBrush}"
+                                   TextTrimming="CharacterEllipsis" />
+                    </StackPanel>
+                    <Border Grid.Column="1"
+                            MinWidth="28"
+                            Margin="8,0,0,0"
+                            Padding="6,1"
+                            CornerRadius="8"
+                            Background="{StaticResource CounterBackgroundBrush}">
+                        <TextBlock Text="{Binding Count}"
+                                   HorizontalAlignment="Center"
+                                   Foreground="{StaticResource TextMutedBrush}"
+                                   FontSize="11" />
+                    </Border>
+                </Grid>
+            </Button>
+        </HierarchicalDataTemplate>
+    </UserControl.Resources>
+
+    <DockPanel LastChildFill="True">
+        <Border DockPanel.Dock="Top"
+                Padding="8"
+                BorderThickness="0,0,0,1"
+                BorderBrush="{StaticResource BorderBrush}">
+            <DockPanel LastChildFill="True">
+                <ToolBar DockPanel.Dock="Top"
+                         Margin="0,0,0,8"
+                         Style="{StaticResource FlatToolBarStyle}">
+                    <Button ToolTip="Isolate"
+                            Command="{Binding IsolateCommand}"
+                            Style="{StaticResource ToolbarButtonStyle}">
+                        <TextBlock Text="ISO" />
+                    </Button>
+                    <Button ToolTip="Select"
+                            Command="{Binding SelectCommand}"
+                            Style="{StaticResource ToolbarButtonStyle}">
+                        <TextBlock Text="SEL" />
+                    </Button>
+                    <Button ToolTip="Clear isolation"
+                            Command="{Binding ClearIsolationCommand}"
+                            Style="{StaticResource ToolbarButtonStyle}">
+                        <TextBlock Text="CLR" />
+                    </Button>
+                    <Button ToolTip="Refresh"
+                            Command="{Binding RefreshCommand}"
+                            Style="{StaticResource ToolbarButtonStyle}">
+                        <TextBlock Text="REF" />
+                    </Button>
+                    <Button ToolTip="Add active tree row to collector"
+                            Command="{Binding AddToCollectorCommand}"
+                            Style="{StaticResource ToolbarButtonStyle}">
+                        <TextBlock Text="ADD" />
+                    </Button>
+                    <Button ToolTip="Preload visible elements from the active view"
+                            Command="{Binding LoadActiveViewCommand}"
+                            Style="{StaticResource ToolbarButtonStyle}">
+                        <TextBlock Text="VIEW" />
+                    </Button>
+                    <Separator />
+                    <TextBlock Text="{Binding TotalCount}"
+                               VerticalAlignment="Center"
+                               Foreground="{StaticResource AccentBrush}"
+                               FontWeight="SemiBold" />
+                </ToolBar>
+
+                <StackPanel>
+                    <UniformGrid Columns="2"
+                                 Margin="0,0,0,6">
+                        <RadioButton Content="Selected"
+                                     IsChecked="{Binding UseSelectedElements, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                     Foreground="{StaticResource TextPrimaryBrush}"
+                                     ToolTip="Build the filter tree from selected elements" />
+                        <RadioButton Content="Current view"
+                                     IsChecked="{Binding UseCurrentViewElements, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                     Foreground="{StaticResource TextPrimaryBrush}"
+                                     ToolTip="Preload visible elements from the active view without selecting them" />
+                    </UniformGrid>
+                    <ComboBox ItemsSource="{Binding CategoryFilters}"
+                              SelectedItem="{Binding SelectedCategoryFilter, UpdateSourceTrigger=PropertyChanged}"
+                              Style="{StaticResource CategoryComboBoxStyle}"
+                              ToolTip="Filter by category" />
+                    <TextBox Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
+                             Margin="0,6,0,0"
+                             Style="{StaticResource SearchBoxStyle}"
+                             ToolTip="Search by name or element parameter" />
+                    <TextBox Text="{Binding ParameterSearchText, UpdateSourceTrigger=PropertyChanged}"
+                             Margin="0,6,0,0"
+                             Style="{StaticResource SearchBoxStyle}"
+                             ToolTip="Filter parameter and value nodes" />
+                </StackPanel>
+            </DockPanel>
+        </Border>
+
+        <Border DockPanel.Dock="Bottom"
+                Padding="8,5"
+                BorderThickness="0,1,0,0"
+                BorderBrush="{StaticResource BorderBrush}">
+            <TextBlock Text="{Binding StatusText}"
+                       Foreground="{StaticResource TextMutedBrush}"
+                       FontSize="11"
+                       TextTrimming="CharacterEllipsis" />
+        </Border>
+
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="*" />
+                <RowDefinition Height="132" />
+            </Grid.RowDefinitions>
+
+            <TreeView ItemsSource="{Binding FilteredRoots}"
+                      Padding="4,8"
+                      Background="{StaticResource PaneBackgroundBrush}"
+                      BorderThickness="0"
+                      ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                      Style="{StaticResource ContextTreeViewStyle}" />
+
+            <Border Grid.Row="1"
+                    Padding="8"
+                    BorderThickness="0,1,0,0"
+                    BorderBrush="{StaticResource BorderBrush}"
+                    Background="{StaticResource PanelBrush}">
+                <DockPanel LastChildFill="True">
+                    <ToolBar DockPanel.Dock="Top"
+                             Margin="0,0,0,6"
+                             Style="{StaticResource FlatToolBarStyle}">
+                        <TextBlock Text="Collector"
+                                   VerticalAlignment="Center"
+                                   Margin="0,0,8,0"
+                                   Foreground="{StaticResource TextMutedBrush}"
+                                   FontWeight="SemiBold" />
+                        <Button ToolTip="Select collector elements"
+                                Command="{Binding SelectCollectorCommand}"
+                                Style="{StaticResource ToolbarButtonStyle}">
+                            <TextBlock Text="SEL" />
+                        </Button>
+                        <Button ToolTip="Isolate collector elements"
+                                Command="{Binding IsolateCollectorCommand}"
+                                Style="{StaticResource ToolbarButtonStyle}">
+                            <TextBlock Text="ISO" />
+                        </Button>
+                        <Button ToolTip="Clear collector"
+                                Command="{Binding ClearCollectorCommand}"
+                                Style="{StaticResource ToolbarButtonStyle}">
+                            <TextBlock Text="CLR" />
+                        </Button>
+                    </ToolBar>
+
+                    <ListBox ItemsSource="{Binding CollectorItems}"
+                             Background="{StaticResource PanelBrush}"
+                             BorderThickness="0"
+                             Foreground="{StaticResource TextPrimaryBrush}"
+                             ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <Grid Margin="0,2">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="{Binding Kind}"
+                                                   Foreground="{StaticResource AccentBrush}"
+                                                   FontSize="11"
+                                                   Margin="0,0,6,0" />
+                                        <TextBlock Text="{Binding Label}"
+                                                   Foreground="{StaticResource TextPrimaryBrush}"
+                                                   TextTrimming="CharacterEllipsis" />
+                                    </StackPanel>
+                                    <Border Grid.Column="1"
+                                            MinWidth="28"
+                                            Margin="8,0,0,0"
+                                            Padding="6,1"
+                                            CornerRadius="8"
+                                            Background="{StaticResource CounterBackgroundBrush}">
+                                        <TextBlock Text="{Binding Count}"
+                                                   HorizontalAlignment="Center"
+                                                   Foreground="{StaticResource TextMutedBrush}"
+                                                   FontSize="11" />
+                                    </Border>
+                                </Grid>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </DockPanel>
+            </Border>
+        </Grid>
+    </DockPanel>
+</UserControl>
