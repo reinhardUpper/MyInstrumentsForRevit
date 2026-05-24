@@ -1,7 +1,9 @@
 using System;
+using System.Collections.Generic;
 using System.Reflection;
 using Autodesk.Revit.UI;
 using MyInstrumentsForRevit.Commands;
+using MyRevitTools.DimensionQuickCommands;
 
 namespace MyInstrumentsForRevit.Ribbon
 {
@@ -12,6 +14,7 @@ namespace MyInstrumentsForRevit.Ribbon
         private const string ViewWorkPanelName = "\u0420\u0430\u0431\u043E\u0442\u0430 \u0441 \u0432\u0438\u0434\u0430\u043C\u0438";
         private const string ViewFiltersPanelName = "\u0420\u0430\u0431\u043E\u0442\u0430 \u0441 \u0444\u0438\u043B\u044C\u0442\u0440\u0430\u043C\u0438";
         private const string CommandLinePanelName = "\u041A\u043E\u043C\u0430\u043D\u0434\u044B";
+        private const string DimensionsPanelName = "\u0423\u0441\u043A\u043E\u0440\u0435\u043D\u0438\u0435 \u043E\u0444\u043E\u0440\u043C\u043B\u0435\u043D\u0438\u044F";
 
         public static void Build(UIControlledApplication application)
         {
@@ -20,6 +23,7 @@ namespace MyInstrumentsForRevit.Ribbon
             BuildGraphicsPanel(application);
             BuildViewWorkPanel(application);
             BuildViewFiltersPanel(application);
+            BuildDimensionsPanel(application);
             BuildCommandLinePanel(application);
         }
 
@@ -139,6 +143,48 @@ namespace MyInstrumentsForRevit.Ribbon
                 "\u0421\u043E\u0437\u0434\u0430\u0435\u0442 \u043F\u043E\u043B\u044C\u0437\u043E\u0432\u0430\u0442\u0435\u043B\u044C\u0441\u043A\u0438\u0439 alias \u0434\u043B\u044F \u043A\u043E\u043C\u0430\u043D\u0434\u043D\u043E\u0439 \u0441\u0442\u0440\u043E\u043A\u0438.");
         }
 
+        private static void BuildDimensionsPanel(UIControlledApplication application)
+        {
+            RibbonPanel panel = GetOrCreatePanel(application, TabName, DimensionsPanelName);
+            string assemblyPath = Assembly.GetExecutingAssembly().Location;
+
+            var dimensionsTools = new PulldownButtonData(
+                "MyInstruments_DimensionQuickCommands",
+                "\u0420\u0430\u0437\u043C\u0435\u0440\u044B");
+            PulldownButton button = panel.AddItem(dimensionsTools) as PulldownButton
+                ?? throw new InvalidOperationException("Failed to create dimension quick commands button.");
+
+            button.ToolTip = "\u0411\u044B\u0441\u0442\u0440\u044B\u0435 \u0440\u0430\u0437\u043C\u0435\u0440\u043D\u044B\u0435 \u043A\u043E\u043C\u0430\u043D\u0434\u044B \u0438 \u0438\u0445 \u043D\u0430\u0441\u0442\u0440\u043E\u0439\u043A\u0430.";
+
+            AddPushButton<OpenDimensionQuickCommandManagerCommand>(
+                button,
+                assemblyPath,
+                "MyInstruments_DimensionQuickCommandManager",
+                "\u041C\u0435\u043D\u0435\u0434\u0436\u0435\u0440\n\u0440\u0430\u0437\u043C\u0435\u0440\u043E\u0432",
+                "\u041E\u0442\u043A\u0440\u044B\u0432\u0430\u0435\u0442 \u043C\u0435\u043D\u0435\u0434\u0436\u0435\u0440 \u0431\u044B\u0441\u0442\u0440\u044B\u0445 \u043A\u043E\u043C\u0430\u043D\u0434 \u043B\u0438\u043D\u0435\u0439\u043D\u044B\u0445 \u0440\u0430\u0437\u043C\u0435\u0440\u043E\u0432.");
+
+            foreach (Type slotType in GetDimensionSlotTypes())
+            {
+                int slotNumber = int.Parse(slotType.Name.Substring(slotType.Name.Length - 2));
+                AddPushButton(
+                    button,
+                    assemblyPath,
+                    $"MyInstruments_DimensionQuickCommandSlot{slotNumber:00}",
+                    $"\u0411\u041A{slotNumber}",
+                    $"\u0417\u0430\u043F\u0443\u0441\u043A\u0430\u0435\u0442 \u0431\u044B\u0441\u0442\u0440\u0443\u044E \u0440\u0430\u0437\u043C\u0435\u0440\u043D\u0443\u044E \u043A\u043E\u043C\u0430\u043D\u0434\u0443 \u0438\u0437 \u0441\u043B\u043E\u0442\u0430 \u0411\u041A{slotNumber}.",
+                    slotType);
+            }
+        }
+
+        private static IReadOnlyList<Type> GetDimensionSlotTypes()
+        {
+            return new[]
+            {
+                typeof(DimensionQuickCommandSlot01),
+                typeof(DimensionQuickCommandSlot02)
+            };
+        }
+
         private static void EnsureTab(UIControlledApplication application, string tabName)
         {
             try
@@ -194,6 +240,22 @@ namespace MyInstrumentsForRevit.Ribbon
             };
 
             panel.AddItem(data);
+        }
+
+        private static void AddPushButton(
+            PulldownButton parent,
+            string assemblyPath,
+            string name,
+            string text,
+            string toolTip,
+            Type commandType)
+        {
+            var data = new PushButtonData(name, text, assemblyPath, commandType.FullName)
+            {
+                ToolTip = toolTip
+            };
+
+            parent.AddPushButton(data);
         }
     }
 }
