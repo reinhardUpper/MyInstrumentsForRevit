@@ -48,36 +48,36 @@
                 <ToolBar DockPanel.Dock="Top"
                          Margin="0,0,0,8"
                          Style="{StaticResource FlatToolBarStyle}">
-                    <Button ToolTip="Isolate"
-                            Command="{Binding IsolateCommand}"
-                            Style="{StaticResource ToolbarButtonStyle}">
-                        <TextBlock Text="ISO" />
-                    </Button>
                     <Button ToolTip="Select"
                             Command="{Binding SelectCommand}"
                             Style="{StaticResource ToolbarButtonStyle}">
                         <TextBlock Text="SEL" />
                     </Button>
-                    <Button ToolTip="Clear isolation"
-                            Command="{Binding ClearIsolationCommand}"
+                    <Button ToolTip="Isolate"
+                            Command="{Binding IsolateCommand}"
                             Style="{StaticResource ToolbarButtonStyle}">
-                        <TextBlock Text="CLR" />
+                        <TextBlock Text="ISO" />
                     </Button>
                     <Button ToolTip="Refresh"
                             Command="{Binding RefreshCommand}"
                             Style="{StaticResource ToolbarButtonStyle}">
                         <TextBlock Text="REF" />
                     </Button>
-                    <Button ToolTip="Add active tree row to collector"
-                            Command="{Binding AddToCollectorCommand}"
-                            Style="{StaticResource ToolbarButtonStyle}">
-                        <TextBlock Text="ADD" />
-                    </Button>
-                    <Button ToolTip="Preload visible elements from the active view"
-                            Command="{Binding LoadActiveViewCommand}"
-                            Style="{StaticResource ToolbarButtonStyle}">
-                        <TextBlock Text="VIEW" />
-                    </Button>
+                    <Menu Background="{StaticResource PaneBackgroundBrush}"
+                          Foreground="{StaticResource TextPrimaryBrush}"
+                          Padding="0"
+                          Margin="0,0,5,0">
+                        <MenuItem Header="More"
+                                  Background="{StaticResource PanelBrush}"
+                                  Foreground="{StaticResource TextPrimaryBrush}">
+                            <MenuItem Header="Clear isolation"
+                                      Command="{Binding ClearIsolationCommand}" />
+                            <MenuItem Header="Add to collector"
+                                      Command="{Binding AddToCollectorCommand}" />
+                            <MenuItem Header="Load current view"
+                                      Command="{Binding LoadActiveViewCommand}" />
+                        </MenuItem>
+                    </Menu>
                     <Separator />
                     <TextBlock Text="{Binding TotalCount}"
                                VerticalAlignment="Center"
@@ -97,15 +97,39 @@
                                      Foreground="{StaticResource TextPrimaryBrush}"
                                      ToolTip="Preload visible elements from the active view without selecting them" />
                     </UniformGrid>
-                    <ComboBox ItemsSource="{Binding CategoryFilters}"
-                              SelectedItem="{Binding SelectedCategoryFilter, UpdateSourceTrigger=PropertyChanged}"
-                              Style="{StaticResource CategoryComboBoxStyle}"
-                              ToolTip="Filter by category" />
+
+                    <CheckBox Content="Prefilter"
+                              IsChecked="{Binding UsePreFilter, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                              Margin="0,0,0,4"
+                              Foreground="{StaticResource TextPrimaryBrush}"
+                              ToolTip="Filter elements before parameter analysis" />
+                    <StackPanel>
+                        <UniformGrid Columns="2"
+                                     Margin="0,0,0,4">
+                            <CheckBox Content="&#1053;&#1077;&#1089;&#1091;&#1097;&#1072;&#1103; &#1072;&#1088;&#1084;&#1072;&#1090;&#1091;&#1088;&#1072;"
+                                      IsChecked="{Binding PreFilterRebar, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                      Foreground="{StaticResource TextMutedBrush}" />
+                            <CheckBox Content="Walls"
+                                      IsChecked="{Binding PreFilterWalls, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                      Foreground="{StaticResource TextMutedBrush}" />
+                            <CheckBox Content="&#1055;&#1077;&#1088;&#1077;&#1082;&#1088;&#1099;&#1090;&#1080;&#1103;"
+                                      IsChecked="{Binding PreFilterFloors, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                      Foreground="{StaticResource TextMutedBrush}" />
+                            <CheckBox Content="&#1060;&#1091;&#1085;&#1076;&#1072;&#1084;&#1077;&#1085;&#1090;&#1099;"
+                                      IsChecked="{Binding PreFilterFoundations, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                      Foreground="{StaticResource TextMutedBrush}" />
+                            <CheckBox Content="&#1054;&#1073;&#1086;&#1073;&#1097;&#1077;&#1085;&#1085;&#1099;&#1077; &#1084;&#1086;&#1076;&#1077;&#1083;&#1080;"
+                                      IsChecked="{Binding PreFilterGenericModels, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                      Foreground="{StaticResource TextMutedBrush}" />
+                        </UniformGrid>
+                    </StackPanel>
                     <TextBox Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
+                             Tag="&lt;Категория / семейство / тип&gt;"
                              Margin="0,6,0,0"
                              Style="{StaticResource SearchBoxStyle}"
                              ToolTip="Search by name or element parameter" />
                     <TextBox Text="{Binding ParameterSearchText, UpdateSourceTrigger=PropertyChanged}"
+                             Tag="&lt;Параметр&gt;"
                              Margin="0,6,0,0"
                              Style="{StaticResource SearchBoxStyle}"
                              ToolTip="Filter parameter and value nodes" />

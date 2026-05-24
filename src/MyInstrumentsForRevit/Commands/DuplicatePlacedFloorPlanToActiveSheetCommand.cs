@@ -88,7 +88,9 @@ namespace MyInstrumentsForRevit.Commands
         {
             return viewType == ViewType.FloorPlan
                 || viewType == ViewType.EngineeringPlan
-                || viewType == ViewType.Detail;
+                || viewType == ViewType.Detail
+                || viewType == ViewType.Section
+                || viewType == ViewType.DraftingView;
         }
     }
 }

@@ -91,6 +91,25 @@ public sealed partial class ContextFilterPaneViewModel : ObservableObject, IDisp
     [ObservableProperty]
     private bool useCurrentViewElements;
 
+    /// <summary>Enable lightweight class/name filtering before parameter analysis.</summary>
+    [ObservableProperty]
+    private bool usePreFilter;
+
+    [ObservableProperty]
+    private bool preFilterRebar = true;
+
+    [ObservableProperty]
+    private bool preFilterWalls = true;
+
+    [ObservableProperty]
+    private bool preFilterFloors = true;
+
+    [ObservableProperty]
+    private bool preFilterFoundations = true;
+
+    [ObservableProperty]
+    private bool preFilterGenericModels = true;
+
     partial void OnSearchTextChanged(string value)
     {
         ApplyFilter();
@@ -162,6 +181,36 @@ public sealed partial class ContextFilterPaneViewModel : ObservableObject, IDisp
 
         _host.SetElementSource(FilterElementSource.CurrentView);
         _ = RefreshAsync();
+    }
+
+    partial void OnUsePreFilterChanged(bool value)
+    {
+        UpdatePreFilterOptions();
+    }
+
+    partial void OnPreFilterWallsChanged(bool value)
+    {
+        UpdatePreFilterOptions();
+    }
+
+    partial void OnPreFilterFloorsChanged(bool value)
+    {
+        UpdatePreFilterOptions();
+    }
+
+    partial void OnPreFilterFoundationsChanged(bool value)
+    {
+        UpdatePreFilterOptions();
+    }
+
+    partial void OnPreFilterGenericModelsChanged(bool value)
+    {
+        UpdatePreFilterOptions();
+    }
+
+    partial void OnPreFilterRebarChanged(bool value)
+    {
+        UpdatePreFilterOptions();
     }
 
     /// <summary>Selects elements that have the clicked parameter value.</summary>
@@ -344,6 +393,17 @@ public sealed partial class ContextFilterPaneViewModel : ObservableObject, IDisp
     private string GetSourceLabel()
     {
         return UseCurrentViewElements ? "Current view" : "Selection";
+    }
+
+    private void UpdatePreFilterOptions()
+    {
+        _host.SetPreFilterOptions(new ElementPreFilterOptions(
+            UsePreFilter,
+            PreFilterRebar,
+            PreFilterWalls,
+            PreFilterFloors,
+            PreFilterFoundations,
+            PreFilterGenericModels));
     }
 
     private void ApplyFilter()

@@ -16,6 +16,7 @@ public sealed class ContextFilterHost : IContextFilterHost
     private readonly SelectionService _selectionService;
     private SelectionSnapshot _currentSnapshot = SelectionSnapshot.Empty;
     private FilterElementSource _elementSource = FilterElementSource.SelectedElements;
+    private ElementPreFilterOptions _preFilterOptions = ElementPreFilterOptions.Default;
 
     /// <summary>Creates the Revit-backed host.</summary>
     public ContextFilterHost(
@@ -44,6 +45,12 @@ public sealed class ContextFilterHost : IContextFilterHost
     }
 
     /// <inheritdoc />
+    public void SetPreFilterOptions(ElementPreFilterOptions options)
+    {
+        _preFilterOptions = options;
+    }
+
+    /// <inheritdoc />
     public Task<SelectionSnapshot> RefreshSelectionAsync()
     {
         return RefreshSelectionAsync(CancellationToken.None);
@@ -56,7 +63,7 @@ public sealed class ContextFilterHost : IContextFilterHost
             uiApplication =>
             {
                 _context.Update(uiApplication);
-                var snapshot = _selectionService.BuildSnapshot();
+                var snapshot = _selectionService.BuildSnapshot(_preFilterOptions);
                 PublishSnapshot(snapshot);
                 return snapshot;
             },
@@ -70,7 +77,7 @@ public sealed class ContextFilterHost : IContextFilterHost
             uiApplication =>
             {
                 _context.Update(uiApplication);
-                var snapshot = _selectionService.BuildActiveViewSnapshot();
+                var snapshot = _selectionService.BuildActiveViewSnapshot(_preFilterOptions);
                 PublishSnapshot(snapshot);
                 return snapshot;
             },

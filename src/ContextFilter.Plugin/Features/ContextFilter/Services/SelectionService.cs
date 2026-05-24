@@ -1,4 +1,5 @@
 using Autodesk.Revit.DB;
+using Autodesk.Revit.DB.Structure;
 using ContextFilter.Core.Models;
 using ContextFilter.Plugin.RevitContext;
 
@@ -20,9 +21,20 @@ public sealed class SelectionService
     /// <summary>Builds a cached snapshot for the current selection.</summary>
     public SelectionSnapshot BuildSnapshot()
     {
+        return BuildSnapshot(ElementPreFilterOptions.Default);
+    }
+
+    /// <summary>Builds a cached snapshot for the current selection.</summary>
+    public SelectionSnapshot BuildSnapshot(ElementPreFilterOptions preFilterOptions)
+    {
         var uiDocument = _context.UiDocument;
+        var document = _context.Document;
         var selectedIds = uiDocument.Selection.GetElementIds()
             .Where(id => id != ElementId.InvalidElementId)
+            .Select(id => document.GetElement(id))
+            .Where(element => element is not null)
+            .Where(element => PassesPreFilter(element!, preFilterOptions))
+            .Select(element => element!.Id)
             .OrderBy(id => id.IntegerValue)
             .ToList();
 
@@ -32,6 +44,12 @@ public sealed class SelectionService
     /// <summary>Builds a cached snapshot for all selectable elements visible in the active view.</summary>
     public SelectionSnapshot BuildActiveViewSnapshot()
     {
+        return BuildActiveViewSnapshot(ElementPreFilterOptions.Default);
+    }
+
+    /// <summary>Builds a cached snapshot for all selectable elements visible in the active view.</summary>
+    public SelectionSnapshot BuildActiveViewSnapshot(ElementPreFilterOptions preFilterOptions)
+    {
         var document = _context.Document;
         var activeView = document.ActiveView;
         var ids = new FilteredElementCollector(document, activeView.Id)
@@ -39,12 +57,49 @@ public sealed class SelectionService
             .ToElements()
             .Where(element => element.Category is not null)
             .Where(element => CanSelectInView(activeView, element))
+            .Where(element => PassesPreFilter(element, preFilterOptions))
             .Select(element => element.Id)
             .Where(id => id != ElementId.InvalidElementId)
             .OrderBy(id => id.IntegerValue)
             .ToList();
 
         return BuildSnapshot(ids, $"view:{activeView.Id.IntegerValue}");
+    }
+
+    private static bool PassesPreFilter(Element element, ElementPreFilterOptions options)
+    {
+        if (!options.IsEnabled)
+        {
+            return true;
+        }
+
+        if (!PassesClassFilter(element, options))
+        {
+            return false;
+        }
+
+        return true;
+    }
+
+    private static bool PassesClassFilter(Element element, ElementPreFilterOptions options)
+    {
+        if (!options.IncludeRebar && !options.IncludeWalls && !options.IncludeFloors &&
+            !options.IncludeFoundations && !options.IncludeGenericModels)
+        {
+            return true;
+        }
+
+        if (options.IncludeRebar && element is Rebar)
+        {
+            return true;
+        }
+
+        int categoryId = element.Category?.Id.IntegerValue ?? 0;
+        return (options.IncludeRebar && categoryId == (int)BuiltInCategory.OST_Rebar)
+            || (options.IncludeWalls && categoryId == (int)BuiltInCategory.OST_Walls)
+            || (options.IncludeFloors && categoryId == (int)BuiltInCategory.OST_Floors)
+            || (options.IncludeFoundations && categoryId == (int)BuiltInCategory.OST_StructuralFoundation)
+            || (options.IncludeGenericModels && categoryId == (int)BuiltInCategory.OST_GenericModel);
     }
 
     private SelectionSnapshot BuildSnapshot(IReadOnlyList<ElementId> selectedIds, string source)

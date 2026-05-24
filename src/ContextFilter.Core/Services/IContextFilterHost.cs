@@ -20,6 +20,9 @@ public interface IContextFilterHost
     /// <summary>Updates the source used to build the cached snapshot.</summary>
     void SetElementSource(FilterElementSource source);
 
+    /// <summary>Updates lightweight element filters applied before parameter analysis.</summary>
+    void SetPreFilterOptions(ElementPreFilterOptions options);
+
     /// <summary>Requests a full selection refresh in a valid Revit API context.</summary>
     Task<SelectionSnapshot> RefreshSelectionAsync();
 
