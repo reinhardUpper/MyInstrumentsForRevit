@@ -5,6 +5,9 @@ using Autodesk.Revit.DB;
 using Autodesk.Revit.UI;
 using MyInstrumentsForRevit.Filters;
 using MyInstrumentsForRevit.Graphics;
+using MyInstrumentsForRevit.Windows;
+using MyInstrumentsForRevit.Commands;
+using MyRevitTools.DimensionQuickCommands;
 
 namespace MyInstrumentsForRevit.CommandLine
 {
@@ -13,17 +16,36 @@ namespace MyInstrumentsForRevit.CommandLine
         private static readonly Dictionary<string, RegisteredCommand> Commands =
             new Dictionary<string, RegisteredCommand>(StringComparer.OrdinalIgnoreCase);
 
+        private static readonly Dictionary<string, RegisteredCommand> RevitCommands =
+            new Dictionary<string, RegisteredCommand>(StringComparer.OrdinalIgnoreCase);
+
+        private static readonly Dictionary<string, List<ElementId>> HiddenLinksByView =
+            new Dictionary<string, List<ElementId>>();
+
         static CommandRegistry()
         {
             Register("help", "Список команд", "Показать список доступных команд.", ShowHelp);
-            Register("alias.path", "Путь к alias'ам", "Показать путь к пользовательскому файлу alias'ов.", ShowAliasPath);
-            Register("alias.reload", "Перечитать alias'ы", "Перечитать пользовательский файл alias'ов.", ReloadAliases);
+            Register("alias.path", "Путь к alias", "Показать путь к пользовательскому файлу alias.", ShowAliasPath);
+            Register("alias.reload", "Перечитать alias", "Перечитать пользовательский файл alias.", ReloadAliases);
+
             Register("filters.refresh", "Обновить фильтры", "Обновить кэш фильтров проекта.", RefreshFilters);
+            Register("filters.add", "Добавить фильтр на вид", "Открыть поиск фильтра и добавить/переключить его на активном виде.", AddViewFilter);
+
+            Register("graphics.hatches", "Штриховка категорий", "Скрыть или вернуть штриховку основных конструктивных категорий.", ToggleStructuralHatches);
+            Register("graphics.rebar_view", "Вид армирования", "Настроить активный вид под армирование.", ConfigureRebarView);
+            Register("graphics.formwork_view", "Вид опалубки", "Настроить активный вид под опалубку.", ConfigureFormworkView);
+            Register("graphics.revit_links", "Revit связи", "Скрыть или вернуть Revit-связи на активном виде.", ToggleRevitLinks);
             Register("rebar.toggle", "Вкл/выкл арматуру", "Включить или выключить категорию несущей арматуры на активном виде.", ToggleRebar);
             Register("view.3d", "Настроить 3D вид", "Применить стандартную настройку активного 3D вида.", Configure3DView);
+            Register("sheet.duplicate", "Дубль листа", "Дублировать активный лист.", DuplicateActiveSheet);
 
-            // Добавляй свои быстрые команды здесь:
-            // Register("my.command", "Описание команды.", uiApplication => { /* Revit API logic */ });
+            Register("quick.manager", "Менеджер размеров", "Открыть менеджер быстрых пресетов БК1-БК4.", OpenQuickCommandManager);
+            Register("quick.bk1", "БК1", "Запустить быстрый пресет БК1.", uiApplication => ExecuteQuickSlot(uiApplication, 1));
+            Register("quick.bk2", "БК2", "Запустить быстрый пресет БК2.", uiApplication => ExecuteQuickSlot(uiApplication, 2));
+            Register("quick.bk3", "БК3", "Запустить быстрый пресет БК3.", uiApplication => ExecuteQuickSlot(uiApplication, 3));
+            Register("quick.bk4", "БК4", "Запустить быстрый пресет БК4.", uiApplication => ExecuteQuickSlot(uiApplication, 4));
+
+            RegisterRevitPostableCommands();
         }
 
         public static IReadOnlyCollection<RegisteredCommand> AllCommands
@@ -31,19 +53,20 @@ namespace MyInstrumentsForRevit.CommandLine
             get
             {
                 CommandAliasService.EnsureLoaded();
-                return Commands.Values
-                    .Concat(CommandAliasService.BuildAliasCommands(Commands))
+                Dictionary<string, RegisteredCommand> executableCommands = GetExecutableCommands();
+                return executableCommands.Values
+                    .Concat(CommandAliasService.BuildAliasCommands(executableCommands))
                     .OrderBy(command => command.Name, StringComparer.OrdinalIgnoreCase)
                     .ToList();
             }
         }
 
         public static IReadOnlyCollection<RegisteredCommand> BaseCommands =>
-            Commands.Values.OrderBy(command => command.Name, StringComparer.OrdinalIgnoreCase).ToList();
+            GetExecutableCommands().Values.OrderBy(command => command.Name, StringComparer.OrdinalIgnoreCase).ToList();
 
         public static bool HasBaseCommand(string name)
         {
-            return Commands.ContainsKey(name);
+            return GetExecutableCommands().ContainsKey(name);
         }
 
         public static void Register(string name, string description, Action<UIApplication> execute)
@@ -67,8 +90,9 @@ namespace MyInstrumentsForRevit.CommandLine
 
             CommandAliasService.EnsureLoaded();
             string resolvedCommandName = CommandAliasService.Resolve(commandName);
+            Dictionary<string, RegisteredCommand> executableCommands = GetExecutableCommands();
 
-            if (!Commands.TryGetValue(resolvedCommandName, out RegisteredCommand command))
+            if (!executableCommands.TryGetValue(resolvedCommandName, out RegisteredCommand command))
             {
                 error = "Команда не найдена: " + commandName;
                 return false;
@@ -77,6 +101,46 @@ namespace MyInstrumentsForRevit.CommandLine
             command.Execute(uiApplication);
             error = string.Empty;
             return true;
+        }
+
+        private static Dictionary<string, RegisteredCommand> GetExecutableCommands()
+        {
+            return Commands
+                .Concat(RevitCommands)
+                .ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.OrdinalIgnoreCase);
+        }
+
+        private static void RegisterRevitPostableCommands()
+        {
+            foreach (PostableCommand postableCommand in Enum.GetValues(typeof(PostableCommand)).Cast<PostableCommand>())
+            {
+                string commandName = postableCommand.ToString();
+                string registryName = "revit." + commandName;
+                RevitCommands[registryName] = new RegisteredCommand(
+                    registryName,
+                    "Revit: " + commandName,
+                    "Стандартная команда Revit PostableCommand.",
+                    uiApplication => PostRevitCommand(uiApplication, postableCommand));
+            }
+        }
+
+        private static void PostRevitCommand(UIApplication uiApplication, PostableCommand postableCommand)
+        {
+            RevitCommandId commandId = RevitCommandId.LookupPostableCommandId(postableCommand);
+            if (commandId == null)
+            {
+                TaskDialog.Show("Командная строка", "Команда Revit недоступна: " + postableCommand);
+                return;
+            }
+
+            try
+            {
+                uiApplication.PostCommand(commandId);
+            }
+            catch (Exception exception) when (exception is Autodesk.Revit.Exceptions.ArgumentException || exception is Autodesk.Revit.Exceptions.InvalidOperationException)
+            {
+                TaskDialog.Show("Командная строка", "Не удалось запустить команду Revit: " + postableCommand + "\n\n" + exception.Message);
+            }
         }
 
         private static void ShowHelp(UIApplication uiApplication)
@@ -97,7 +161,7 @@ namespace MyInstrumentsForRevit.CommandLine
         private static void ReloadAliases(UIApplication uiApplication)
         {
             CommandAliasService.Reload();
-            TaskDialog.Show("Командная строка", "Alias'ы перечитаны: " + CommandAliasService.CurrentAliases.Count);
+            TaskDialog.Show("Командная строка", "Alias перечитаны: " + CommandAliasService.CurrentAliases.Count);
         }
 
         private static void RefreshFilters(UIApplication uiApplication)
@@ -105,6 +169,138 @@ namespace MyInstrumentsForRevit.CommandLine
             Document document = GetDocument(uiApplication);
             int count = FilterCacheService.Refresh(document).Count;
             TaskDialog.Show("Командная строка", "Кэш фильтров обновлен.\nНайдено фильтров: " + count);
+        }
+
+        private static void AddViewFilter(UIApplication uiApplication)
+        {
+            Document document = GetDocument(uiApplication);
+            View view = document.ActiveView;
+            if (!ViewFilterApplicator.CanUseFilters(view))
+            {
+                TaskDialog.Show("Командная строка", "Активный вид не поддерживает фильтры.");
+                return;
+            }
+
+            if (!FilterCacheService.HasFiltersFor(document))
+            {
+                FilterCacheService.Refresh(document);
+            }
+
+            if (FilterCacheService.Filters.Count == 0)
+            {
+                TaskDialog.Show("Командная строка", "В проекте не найдено существующих фильтров.");
+                return;
+            }
+
+            var window = new FilterSearchWindow(FilterCacheService.Filters);
+            if (window.ShowDialog() != true || window.SelectedFilter == null)
+            {
+                return;
+            }
+
+            if (!FilterCacheService.Exists(document, window.SelectedFilter))
+            {
+                TaskDialog.Show("Командная строка", "Фильтр был удален или переименован. Обновите список фильтров.");
+                return;
+            }
+
+            using (var transaction = new Transaction(document, "Command line: apply view filter"))
+            {
+                transaction.Start();
+                ViewFilterApplicator.ApplyVisibility(view, window.SelectedFilter.Id, window.MakeVisible);
+                transaction.Commit();
+            }
+        }
+
+        private static void ToggleStructuralHatches(UIApplication uiApplication)
+        {
+            Document document = GetDocument(uiApplication);
+            View view = document.ActiveView;
+
+            using (var transaction = new Transaction(document, "Command line: toggle structural hatches"))
+            {
+                transaction.Start();
+                if (CategoryGraphicsStateStore.HasSavedState(document, view))
+                {
+                    CategoryGraphicsStateStore.Restore(document, view);
+                }
+                else
+                {
+                    CategoryGraphicsStateStore.Save(document, view, StructuralGraphicsCategories.MainCategories);
+                    ViewGraphicsService.HideStructuralCategoryPatterns(document, view);
+                }
+
+                transaction.Commit();
+            }
+        }
+
+        private static void ConfigureRebarView(UIApplication uiApplication)
+        {
+            Document document = GetDocument(uiApplication);
+            View view = document.ActiveView;
+            using (var transaction = new Transaction(document, "Command line: configure rebar view"))
+            {
+                transaction.Start();
+                ViewGraphicsService.ApplyStructuralCategorySettings(document, view, 2, true);
+                ViewGraphicsService.SetCategoriesHidden(document, view, StructuralGraphicsCategories.RebarCategories, false);
+                transaction.Commit();
+            }
+        }
+
+        private static void ConfigureFormworkView(UIApplication uiApplication)
+        {
+            Document document = GetDocument(uiApplication);
+            View view = document.ActiveView;
+            using (var transaction = new Transaction(document, "Command line: configure formwork view"))
+            {
+                transaction.Start();
+                ViewGraphicsService.ApplyStructuralCategorySettings(document, view, 4, true);
+                ViewGraphicsService.SetCategoriesHidden(document, view, StructuralGraphicsCategories.RebarCategories, true);
+                transaction.Commit();
+            }
+        }
+
+        private static void ToggleRevitLinks(UIApplication uiApplication)
+        {
+            Document document = GetDocument(uiApplication);
+            View view = document.ActiveView;
+            string key = BuildViewKey(document, view);
+
+            using (var transaction = new Transaction(document, "Command line: toggle Revit links"))
+            {
+                transaction.Start();
+
+                if (HiddenLinksByView.TryGetValue(key, out List<ElementId> savedIds))
+                {
+                    List<ElementId> idsToUnhide = savedIds.Where(id => document.GetElement(id) != null).ToList();
+                    if (idsToUnhide.Count > 0)
+                    {
+                        view.UnhideElements(idsToUnhide);
+                    }
+
+                    HiddenLinksByView.Remove(key);
+                    transaction.Commit();
+                    return;
+                }
+
+                List<ElementId> visibleLinkIds = new FilteredElementCollector(document, view.Id)
+                    .OfClass(typeof(RevitLinkInstance))
+                    .WhereElementIsNotElementType()
+                    .Where(element => element.CanBeHidden(view))
+                    .Select(element => element.Id)
+                    .ToList();
+
+                if (visibleLinkIds.Count == 0)
+                {
+                    transaction.RollBack();
+                    TaskDialog.Show("Командная строка", "На активном виде нет видимых Revit-связей.");
+                    return;
+                }
+
+                HiddenLinksByView[key] = visibleLinkIds;
+                view.HideElements(visibleLinkIds);
+                transaction.Commit();
+            }
         }
 
         private static void ToggleRebar(UIApplication uiApplication)
@@ -153,8 +349,63 @@ namespace MyInstrumentsForRevit.CommandLine
                     BuiltInCategory.OST_Levels,
                     BuiltInCategory.OST_Grids
                 }, true);
+                SetModelCategoriesTransparency(document, view3D, 20);
                 transaction.Commit();
             }
+        }
+
+        private static void OpenQuickCommandManager(UIApplication uiApplication)
+        {
+            var window = new DimensionQuickCommandManagerWindow(uiApplication);
+            window.ShowDialog();
+        }
+
+        private static void ExecuteQuickSlot(UIApplication uiApplication, int slotNumber)
+        {
+            DimensionQuickCommandConfig? config = DimensionQuickCommandStorage.Load()
+                .FirstOrDefault(item => item.SlotNumber == slotNumber);
+            if (config == null)
+            {
+                TaskDialog.Show("Командная строка", "Для слота БК" + slotNumber + " команда не назначена.");
+                return;
+            }
+
+            DimensionQuickCommandExecutor.Execute(uiApplication, config);
+        }
+
+        private static void DuplicateActiveSheet(UIApplication uiApplication)
+        {
+            Document document = GetDocument(uiApplication);
+            DuplicateActiveSheetCommand.Duplicate(document);
+        }
+
+        private static void SetModelCategoriesTransparency(Document document, View view, int transparency)
+        {
+            foreach (Category category in document.Settings.Categories)
+            {
+                if (category == null || category.CategoryType != CategoryType.Model)
+                {
+                    continue;
+                }
+
+                if (!category.get_AllowsVisibilityControl(view))
+                {
+                    continue;
+                }
+
+                OverrideGraphicSettings settings = view.GetCategoryOverrides(category.Id);
+                settings.SetSurfaceTransparency(transparency);
+                view.SetCategoryOverrides(category.Id, settings);
+            }
+        }
+
+        private static string BuildViewKey(Document document, View view)
+        {
+            string documentKey = string.IsNullOrWhiteSpace(document.PathName)
+                ? document.GetHashCode().ToString()
+                : document.PathName;
+
+            return documentKey + ":" + view.Id.IntegerValue;
         }
 
         private static Document GetDocument(UIApplication uiApplication)

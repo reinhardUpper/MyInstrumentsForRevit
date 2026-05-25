@@ -113,7 +113,12 @@ namespace MyRevitTools.DimensionQuickCommands
         {
             return configs
                 .Where(config => config != null)
-                .Where(config => config.SlotNumber >= 1 && config.SlotNumber <= 2)
+                .Where(config => config.SlotNumber >= 1 && config.SlotNumber <= 4)
+                .Select(config =>
+                {
+                    config.CommandKind = QuickCommandKind.Normalize(config.CommandKind);
+                    return config;
+                })
                 .OrderBy(config => config.SlotNumber)
                 .ThenBy(config => config.DisplayName, StringComparer.CurrentCultureIgnoreCase)
                 .ToList();

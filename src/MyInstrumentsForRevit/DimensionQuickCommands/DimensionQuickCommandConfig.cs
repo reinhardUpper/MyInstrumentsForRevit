@@ -8,6 +8,12 @@ namespace MyRevitTools.DimensionQuickCommands
 
         public string DisplayName { get; set; } = string.Empty;
 
+        public string HotkeyText { get; set; } = string.Empty;
+
+        public string CommandKind { get; set; } = QuickCommandKind.LinearDimension;
+
+        public string CommandKindDisplayName => QuickCommandKind.GetDisplayName(CommandKind);
+
         public string DimensionTypeName { get; set; } = string.Empty;
 
         public string DimensionTypeUniqueId { get; set; } = string.Empty;

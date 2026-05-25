@@ -27,6 +27,7 @@ namespace MyInstrumentsForRevit.Commands
                 HideCategoryIfPossible(document, view3D, BuiltInCategory.OST_VolumeOfInterest);
                 HideCategoryIfPossible(document, view3D, BuiltInCategory.OST_Levels);
                 HideCategoryIfPossible(document, view3D, BuiltInCategory.OST_Grids);
+                SetModelCategoriesTransparency(document, view3D, 20);
 
                 transaction.Commit();
             }
@@ -46,6 +47,26 @@ namespace MyInstrumentsForRevit.Commands
             if (view.CanCategoryBeHidden(categoryId))
             {
                 view.SetCategoryHidden(categoryId, true);
+            }
+        }
+
+        private static void SetModelCategoriesTransparency(Document document, View view, int transparency)
+        {
+            foreach (Category category in document.Settings.Categories)
+            {
+                if (category == null || category.CategoryType != CategoryType.Model)
+                {
+                    continue;
+                }
+
+                if (!category.get_AllowsVisibilityControl(view))
+                {
+                    continue;
+                }
+
+                OverrideGraphicSettings settings = view.GetCategoryOverrides(category.Id);
+                settings.SetSurfaceTransparency(transparency);
+                view.SetCategoryOverrides(category.Id, settings);
             }
         }
     }

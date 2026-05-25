@@ -4,84 +4,133 @@ using System.Linq;
 using Autodesk.Revit.Attributes;
 using Autodesk.Revit.DB;
 using Autodesk.Revit.UI;
-using MyInstrumentsForRevit.Forms;
-using MyInstrumentsForRevit.Views;
-using WinForms = System.Windows.Forms;
 
 namespace MyInstrumentsForRevit.Commands
 {
     [Transaction(TransactionMode.Manual)]
     public class DuplicatePlacedFloorPlanToActiveSheetCommand : IExternalCommand
     {
+        private const double OffsetXMillimeters = 80.0;
+        private const double OffsetYMillimeters = 55.0;
+        private const int Columns = 3;
+
         public Result Execute(ExternalCommandData commandData, ref string message, ElementSet elements)
         {
-            Document document = commandData.Application.ActiveUIDocument.Document;
-            var activeSheet = document.ActiveView as ViewSheet;
+            UIDocument uiDocument = commandData.Application.ActiveUIDocument;
+            Document document = uiDocument.Document;
+            ViewSheet? activeSheet = GetCurrentSheet(document, uiDocument);
             if (activeSheet == null)
             {
-                TaskDialog.Show("Копирование вида", "Вы должны находиться на листе.");
+                TaskDialog.Show("Копирование вида", "Откройте лист и повторите команду.");
                 return Result.Cancelled;
             }
 
-            List<PlacedViewOption> placedViews = GetPlacedViews(document);
-            if (placedViews.Count == 0)
+            List<View> selectedViews = GetSelectedViews(document, uiDocument)
+                .Where(view => IsSupportedViewType(view.ViewType))
+                .OrderBy(view => view.Name, StringComparer.CurrentCultureIgnoreCase)
+                .ToList();
+
+            if (selectedViews.Count == 0)
             {
                 TaskDialog.Show(
                     "Копирование вида",
-                    "В проекте не найдено размещенных на листах планов этажей, планов несущих конструкций или видов-узлов.");
+                    "Выделите один или несколько видов в диспетчере проекта: план, план конструкций, узел, разрез или чертежный вид.");
                 return Result.Cancelled;
             }
 
-            using (var form = new ViewSelectForm(placedViews))
+            XYZ basePoint = GetSheetCenter(activeSheet);
+            double offsetX = UnitUtils.ConvertToInternalUnits(OffsetXMillimeters, UnitTypeId.Millimeters);
+            double offsetY = UnitUtils.ConvertToInternalUnits(OffsetYMillimeters, UnitTypeId.Millimeters);
+            int createdCount = 0;
+            var errors = new List<string>();
+
+            using (var transaction = new Transaction(document, "Copy selected views to active sheet"))
             {
-                if (form.ShowDialog() != WinForms.DialogResult.OK || form.SelectedOption == null)
+                transaction.Start();
+
+                foreach (View sourceView in selectedViews)
                 {
-                    return Result.Cancelled;
+                    try
+                    {
+                        if (!sourceView.CanViewBeDuplicated(ViewDuplicateOption.WithDetailing))
+                        {
+                            errors.Add(sourceView.Name + ": вид нельзя дублировать с детализацией.");
+                            continue;
+                        }
+
+                        ElementId newViewId = sourceView.Duplicate(ViewDuplicateOption.WithDetailing);
+                        if (!Viewport.CanAddViewToSheet(document, activeSheet.Id, newViewId))
+                        {
+                            errors.Add(sourceView.Name + ": копию нельзя разместить на текущем листе.");
+                            continue;
+                        }
+
+                        XYZ point = GetPlacementPoint(basePoint, createdCount, offsetX, offsetY);
+                        Viewport.Create(document, activeSheet.Id, newViewId, point);
+                        createdCount++;
+                    }
+                    catch (Exception exception)
+                    {
+                        errors.Add(sourceView.Name + ": " + exception.Message);
+                    }
                 }
 
-                PlacedViewOption selected = form.SelectedOption;
-                if (!selected.View.CanViewBeDuplicated(ViewDuplicateOption.WithDetailing))
-                {
-                    TaskDialog.Show("Копирование вида", "Выбранный вид нельзя дублировать с детализацией.");
-                    return Result.Cancelled;
-                }
+                transaction.Commit();
+            }
 
-                using (var transaction = new Transaction(document, "Copy placed view to active sheet"))
-                {
-                    transaction.Start();
-                    ElementId newViewId = selected.View.Duplicate(ViewDuplicateOption.WithDetailing);
-                    Viewport.Create(document, activeSheet.Id, newViewId, selected.Center);
-                    transaction.Commit();
-                }
+            if (createdCount == 0)
+            {
+                TaskDialog.Show("Копирование вида", "Не удалось создать копии выбранных видов.\n\n" + string.Join("\n", errors.Take(8)));
+                return Result.Cancelled;
+            }
+
+            if (errors.Count > 0)
+            {
+                TaskDialog.Show("Копирование вида", "Создано копий: " + createdCount + "\nЗамечания: " + errors.Count);
             }
 
             return Result.Succeeded;
         }
 
-        private static List<PlacedViewOption> GetPlacedViews(Document document)
+        private static IEnumerable<View> GetSelectedViews(Document document, UIDocument uiDocument)
         {
-            return new FilteredElementCollector(document)
-                .OfClass(typeof(Viewport))
-                .Cast<Viewport>()
-                .Select(viewport => CreateOption(document, viewport))
-                .Where(option => option != null)
-                .Cast<PlacedViewOption>()
-                .OrderBy(option => option.ToString(), StringComparer.CurrentCultureIgnoreCase)
-                .ToList();
+            return uiDocument.Selection.GetElementIds()
+                .Select(document.GetElement)
+                .OfType<View>()
+                .Where(view => !view.IsTemplate);
         }
 
-        private static PlacedViewOption? CreateOption(Document document, Viewport viewport)
+        private static ViewSheet? GetCurrentSheet(Document document, UIDocument uiDocument)
         {
-            View? view = document.GetElement(viewport.ViewId) as View;
-            if (view == null || !IsSupportedViewType(view.ViewType))
+            if (document.ActiveView is ViewSheet activeSheet)
             {
-                return null;
+                return activeSheet;
             }
 
-            ViewSheet? sheet = document.GetElement(viewport.OwnerViewId) as ViewSheet;
-            string sheetNumber = sheet == null ? "No sheet" : sheet.SheetNumber;
-            string sheetName = sheet == null ? string.Empty : sheet.Name;
-            return new PlacedViewOption(view, viewport.GetBoxCenter(), sheetNumber, sheetName);
+            foreach (UIView uiView in uiDocument.GetOpenUIViews())
+            {
+                if (document.GetElement(uiView.ViewId) is ViewSheet sheet)
+                {
+                    return sheet;
+                }
+            }
+
+            return null;
+        }
+
+        private static XYZ GetSheetCenter(ViewSheet sheet)
+        {
+            BoundingBoxUV outline = sheet.Outline;
+            double x = (outline.Min.U + outline.Max.U) / 2.0;
+            double y = (outline.Min.V + outline.Max.V) / 2.0;
+            return new XYZ(x, y, 0);
+        }
+
+        private static XYZ GetPlacementPoint(XYZ basePoint, int index, double offsetX, double offsetY)
+        {
+            int column = index % Columns;
+            int row = index / Columns;
+            return new XYZ(basePoint.X + column * offsetX, basePoint.Y - row * offsetY, basePoint.Z);
         }
 
         private static bool IsSupportedViewType(ViewType viewType)

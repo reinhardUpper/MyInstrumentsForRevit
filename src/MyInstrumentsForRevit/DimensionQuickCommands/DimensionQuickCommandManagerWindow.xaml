@@ -26,8 +26,10 @@
                   Margin="0,0,12,0">
             <DataGrid.Columns>
                 <DataGridTextColumn Header="&#1057;&#1083;&#1086;&#1090;" Binding="{Binding SlotNumber, StringFormat=&#1041;&#1050;{0}}" Width="64" />
-                <DataGridTextColumn Header="&#1048;&#1084;&#1103; &#1082;&#1086;&#1084;&#1072;&#1085;&#1076;&#1099;" Binding="{Binding DisplayName}" Width="*" />
-                <DataGridTextColumn Header="&#1058;&#1080;&#1087; &#1088;&#1072;&#1079;&#1084;&#1077;&#1088;&#1072;" Binding="{Binding DimensionTypeName}" Width="*" />
+                <DataGridTextColumn Header="&#1055;&#1088;&#1077;&#1089;&#1077;&#1090;" Binding="{Binding DisplayName}" Width="*" />
+                <DataGridTextColumn Header="&#1043;&#1086;&#1088;&#1103;&#1095;&#1072;&#1103; &#1082;&#1083;&#1072;&#1074;&#1080;&#1096;&#1072;" Binding="{Binding HotkeyText}" Width="120" />
+                <DataGridTextColumn Header="&#1050;&#1072;&#1090;&#1077;&#1075;&#1086;&#1088;&#1080;&#1103;" Binding="{Binding CommandKindDisplayName}" Width="110" />
+                <DataGridTextColumn Header="&#1058;&#1080;&#1087;" Binding="{Binding DimensionTypeName}" Width="*" />
             </DataGrid.Columns>
         </DataGrid>
 
@@ -41,12 +43,13 @@
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
                     <RowDefinition Height="*" />
                     <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
 
                 <StackPanel>
-                    <TextBlock Text="&#1048;&#1084;&#1103; &#1082;&#1086;&#1084;&#1072;&#1085;&#1076;&#1099;" />
+                    <TextBlock Text="&#1053;&#1072;&#1079;&#1074;&#1072;&#1085;&#1080;&#1077; &#1087;&#1088;&#1077;&#1089;&#1077;&#1090;&#1072;" />
                     <TextBox x:Name="DisplayNameTextBox"
                              Height="28"
                              Margin="0,4,0,10"
@@ -54,7 +57,7 @@
                 </StackPanel>
 
                 <StackPanel Grid.Row="1">
-                    <TextBlock Text="&#1058;&#1080;&#1087; &#1088;&#1072;&#1079;&#1084;&#1077;&#1088;&#1072;" />
+                    <TextBlock Text="&#1058;&#1080;&#1087; &#1088;&#1072;&#1079;&#1084;&#1077;&#1088;&#1072; / &#1101;&#1083;&#1077;&#1084;&#1077;&#1085;&#1090;&#1072; &#1091;&#1079;&#1083;&#1072;" />
                     <ComboBox x:Name="DimensionTypeComboBox"
                               Height="28"
                               Margin="0,4,0,10"
@@ -71,13 +74,21 @@
                               SelectedValuePath="Number" />
                 </StackPanel>
 
-                <TextBlock Grid.Row="3"
+                <StackPanel Grid.Row="3">
+                    <TextBlock Text="&#1043;&#1086;&#1088;&#1103;&#1095;&#1072;&#1103; &#1082;&#1083;&#1072;&#1074;&#1080;&#1096;&#1072;" />
+                    <TextBox x:Name="HotkeyTextBox"
+                             Height="28"
+                             Margin="0,4,0,10"
+                             VerticalContentAlignment="Center" />
+                </StackPanel>
+
+                <TextBlock Grid.Row="4"
                            TextWrapping="Wrap"
                            Foreground="#666666"
                            Margin="0,0,0,12"
-                           Text="&#1043;&#1086;&#1088;&#1103;&#1095;&#1080;&#1077; &#1082;&#1083;&#1072;&#1074;&#1080;&#1096;&#1080; &#1085;&#1072;&#1079;&#1085;&#1072;&#1095;&#1072;&#1102;&#1090;&#1089;&#1103; &#1095;&#1077;&#1088;&#1077;&#1079; &#1089;&#1090;&#1072;&#1085;&#1076;&#1072;&#1088;&#1090;&#1085;&#1086;&#1077; &#1086;&#1082;&#1085;&#1086; Revit Keyboard Shortcuts. &#1053;&#1072;&#1079;&#1085;&#1072;&#1095;&#1072;&#1081;&#1090;&#1077; &#1082;&#1083;&#1072;&#1074;&#1080;&#1096;&#1091; &#1085;&#1072; &#1089;&#1083;&#1086;&#1090; &#1041;&#1050;1 &#1080;&#1083;&#1080; &#1041;&#1050;2." />
+                           Text="&#1043;&#1086;&#1088;&#1103;&#1095;&#1080;&#1077; &#1082;&#1083;&#1072;&#1074;&#1080;&#1096;&#1080; &#1085;&#1072;&#1079;&#1085;&#1072;&#1095;&#1072;&#1102;&#1090;&#1089;&#1103; &#1095;&#1077;&#1088;&#1077;&#1079; Revit Keyboard Shortcuts. &#1053;&#1072;&#1079;&#1085;&#1072;&#1095;&#1072;&#1081;&#1090;&#1077; &#1082;&#1083;&#1072;&#1074;&#1080;&#1096;&#1091; &#1085;&#1072; &#1089;&#1083;&#1086;&#1090; &#1041;&#1050;1, &#1041;&#1050;2, &#1041;&#1050;3 &#1080;&#1083;&#1080; &#1041;&#1050;4." />
 
-                <UniformGrid Grid.Row="5"
+                <UniformGrid Grid.Row="6"
                              Columns="2"
                              Rows="3">
                     <Button Content="&#1057;&#1086;&#1093;&#1088;&#1072;&#1085;&#1080;&#1090;&#1100;"

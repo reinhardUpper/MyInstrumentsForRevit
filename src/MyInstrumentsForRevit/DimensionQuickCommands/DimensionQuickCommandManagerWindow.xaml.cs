@@ -12,7 +12,7 @@ namespace MyRevitTools.DimensionQuickCommands
     {
         private readonly UIApplication uiapp;
         private readonly ObservableCollection<DimensionQuickCommandConfig> configs = new ObservableCollection<DimensionQuickCommandConfig>();
-        private List<NamedElementInfo> dimensionTypes = new List<NamedElementInfo>();
+        private List<NamedElementInfo> availableTypes = new List<NamedElementInfo>();
         private DimensionQuickCommandConfig? selectedConfig;
 
         public DimensionQuickCommandManagerWindow(UIApplication uiapp)
@@ -20,8 +20,8 @@ namespace MyRevitTools.DimensionQuickCommands
             InitializeComponent();
             this.uiapp = uiapp;
             CommandsGrid.ItemsSource = configs;
-            SlotComboBox.ItemsSource = Enumerable.Range(1, 2).Select(number => new SlotInfo(number)).ToList();
-            LoadDimensionTypes();
+            SlotComboBox.ItemsSource = Enumerable.Range(1, 4).Select(number => new SlotInfo(number)).ToList();
+            LoadAvailableTypes();
             LoadConfigs();
             ClearEditor();
         }
@@ -39,21 +39,21 @@ namespace MyRevitTools.DimensionQuickCommands
             StatusTextBlock.Text = $"Загружено команд: {configs.Count}";
         }
 
-        private void LoadDimensionTypes()
+        private void LoadAvailableTypes()
         {
             Document? doc = Document;
             if (doc == null)
             {
-                dimensionTypes = new List<NamedElementInfo>();
-                DimensionTypeComboBox.ItemsSource = dimensionTypes;
+                availableTypes = new List<NamedElementInfo>();
+                DimensionTypeComboBox.ItemsSource = availableTypes;
                 return;
             }
 
-            dimensionTypes = DimensionTypeCollector.GetDimensionTypes(doc);
-            DimensionTypeComboBox.ItemsSource = dimensionTypes;
-            StatusTextBlock.Text = dimensionTypes.Count == 0
-                ? "В документе не найдены типы линейных размеров."
-                : $"Типов размеров: {dimensionTypes.Count}";
+            availableTypes = DimensionTypeCollector.GetAvailableTypes(doc);
+            DimensionTypeComboBox.ItemsSource = availableTypes;
+            StatusTextBlock.Text = availableTypes.Count == 0
+                ? "В документе не найдены типы размеров и элементов узлов."
+                : $"Типов пресетов: {availableTypes.Count}";
         }
 
         private void OnCommandSelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
@@ -65,24 +65,25 @@ namespace MyRevitTools.DimensionQuickCommands
         private void OnSaveClick(object sender, RoutedEventArgs e)
         {
             string displayName = DisplayNameTextBox.Text.Trim();
+            string hotkeyText = HotkeyTextBox.Text.Trim();
             var selectedType = DimensionTypeComboBox.SelectedItem as NamedElementInfo;
             var selectedSlot = SlotComboBox.SelectedItem as SlotInfo;
 
             if (string.IsNullOrWhiteSpace(displayName))
             {
-                TaskDialog.Show("Менеджер размерных команд", "Введите имя команды.");
+                TaskDialog.Show("Менеджер быстрых команд", "Введите имя команды.");
                 return;
             }
 
             if (selectedType == null)
             {
-                TaskDialog.Show("Менеджер размерных команд", "Выберите тип размера.");
+                TaskDialog.Show("Менеджер быстрых команд", "Выберите тип размера или элемента узла.");
                 return;
             }
 
             if (selectedSlot == null)
             {
-                TaskDialog.Show("Менеджер размерных команд", "Выберите слот быстрой команды.");
+                TaskDialog.Show("Менеджер быстрых команд", "Выберите слот быстрой команды.");
                 return;
             }
 
@@ -93,8 +94,8 @@ namespace MyRevitTools.DimensionQuickCommands
             if (occupied != null)
             {
                 TaskDialogResult result = TaskDialog.Show(
-                    "Менеджер размерных команд",
-                    $"\u0421\u043B\u043E\u0442 \u0411\u041A{selectedSlot.Number} \u0443\u0436\u0435 \u0437\u0430\u043D\u044F\u0442 \u043A\u043E\u043C\u0430\u043D\u0434\u043E\u0439 \"{occupied.DisplayName}\".\n\n\u0417\u0430\u043C\u0435\u043D\u0438\u0442\u044C?",
+                    "Менеджер быстрых команд",
+                    $"Слот БК{selectedSlot.Number} уже занят командой \"{occupied.DisplayName}\".\n\nЗаменить?",
                     TaskDialogCommonButtons.Yes | TaskDialogCommonButtons.No);
                 if (result != TaskDialogResult.Yes)
                 {
@@ -116,6 +117,8 @@ namespace MyRevitTools.DimensionQuickCommands
             }
 
             selectedConfig.DisplayName = displayName;
+            selectedConfig.HotkeyText = hotkeyText;
+            selectedConfig.CommandKind = selectedType.Kind;
             selectedConfig.DimensionTypeName = selectedType.Name;
             selectedConfig.DimensionTypeUniqueId = selectedType.UniqueId;
             selectedConfig.DimensionTypeElementId = selectedType.IntegerId;
@@ -132,7 +135,7 @@ namespace MyRevitTools.DimensionQuickCommands
         {
             if (selectedConfig == null)
             {
-                TaskDialog.Show("Менеджер размерных команд", "Выберите команду для удаления.");
+                TaskDialog.Show("Менеджер быстрых команд", "Выберите команду для удаления.");
                 return;
             }
 
@@ -149,7 +152,7 @@ namespace MyRevitTools.DimensionQuickCommands
             DimensionQuickCommandConfig? config = selectedConfig;
             if (config == null)
             {
-                TaskDialog.Show("Менеджер размерных команд", "Выберите команду для запуска.");
+                TaskDialog.Show("Менеджер быстрых команд", "Выберите команду для запуска.");
                 return;
             }
 
@@ -159,7 +162,7 @@ namespace MyRevitTools.DimensionQuickCommands
 
         private void OnRefreshTypesClick(object sender, RoutedEventArgs e)
         {
-            LoadDimensionTypes();
+            LoadAvailableTypes();
         }
 
         private void OnNewClick(object sender, RoutedEventArgs e)
@@ -178,15 +181,24 @@ namespace MyRevitTools.DimensionQuickCommands
             }
 
             DisplayNameTextBox.Text = config.DisplayName;
+            HotkeyTextBox.Text = config.HotkeyText;
             SlotComboBox.SelectedItem = SlotComboBox.Items.Cast<SlotInfo>().FirstOrDefault(slot => slot.Number == config.SlotNumber);
-            DimensionTypeComboBox.SelectedItem = dimensionTypes.FirstOrDefault(type => type.IntegerId == config.DimensionTypeElementId)
-                ?? dimensionTypes.FirstOrDefault(type => string.Equals(type.UniqueId, config.DimensionTypeUniqueId, StringComparison.OrdinalIgnoreCase))
-                ?? dimensionTypes.FirstOrDefault(type => string.Equals(type.Name, config.DimensionTypeName, StringComparison.CurrentCultureIgnoreCase));
+            string kind = QuickCommandKind.Normalize(config.CommandKind);
+            DimensionTypeComboBox.SelectedItem = availableTypes.FirstOrDefault(type =>
+                    type.IntegerId == config.DimensionTypeElementId
+                    && string.Equals(type.Kind, kind, StringComparison.OrdinalIgnoreCase))
+                ?? availableTypes.FirstOrDefault(type =>
+                    string.Equals(type.UniqueId, config.DimensionTypeUniqueId, StringComparison.OrdinalIgnoreCase)
+                    && string.Equals(type.Kind, kind, StringComparison.OrdinalIgnoreCase))
+                ?? availableTypes.FirstOrDefault(type =>
+                    string.Equals(type.Name, config.DimensionTypeName, StringComparison.CurrentCultureIgnoreCase)
+                    && string.Equals(type.Kind, kind, StringComparison.OrdinalIgnoreCase));
         }
 
         private void ClearEditor()
         {
             DisplayNameTextBox.Text = string.Empty;
+            HotkeyTextBox.Text = string.Empty;
             DimensionTypeComboBox.SelectedItem = null;
             SlotComboBox.SelectedItem = null;
         }
@@ -202,7 +214,7 @@ namespace MyRevitTools.DimensionQuickCommands
             public SlotInfo(int number)
             {
                 Number = number;
-                DisplayName = $"\u0411\u041A{number}";
+                DisplayName = $"БК{number}";
             }
 
             public int Number { get; }

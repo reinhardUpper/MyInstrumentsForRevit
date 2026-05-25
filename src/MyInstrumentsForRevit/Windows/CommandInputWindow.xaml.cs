@@ -29,7 +29,7 @@ namespace MyInstrumentsForRevit.Windows
             if (e.Key == Key.Enter)
             {
                 e.Handled = true;
-                ExecuteCurrentCommand();
+                CompleteOrExecuteCurrentCommand();
             }
             else if (e.Key == Key.Down && SuggestionsListBox.Items.Count > 0)
             {
@@ -69,6 +69,23 @@ namespace MyInstrumentsForRevit.Windows
             {
                 StatusTextBlock.Text = exception.Message;
             }
+        }
+
+        private void CompleteOrExecuteCurrentCommand()
+        {
+            string currentText = (CommandTextBox.Text ?? string.Empty).Trim();
+            RegisteredCommand? selectedCommand = SuggestionsListBox.SelectedItem as RegisteredCommand;
+
+            if (selectedCommand != null
+                && !string.Equals(currentText, selectedCommand.Name, StringComparison.OrdinalIgnoreCase))
+            {
+                CommandTextBox.Text = selectedCommand.Name;
+                CommandTextBox.CaretIndex = CommandTextBox.Text.Length;
+                StatusTextBlock.Text = "Команда подставлена. Нажмите Enter еще раз для запуска.";
+                return;
+            }
+
+            ExecuteCurrentCommand();
         }
 
         private void RefreshSuggestions()

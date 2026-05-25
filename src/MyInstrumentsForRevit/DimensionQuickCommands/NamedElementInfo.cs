@@ -12,6 +12,10 @@ namespace MyRevitTools.DimensionQuickCommands
 
         public string Name { get; set; } = string.Empty;
 
+        public string Kind { get; set; } = QuickCommandKind.LinearDimension;
+
+        public string KindDisplayName => QuickCommandKind.GetDisplayName(Kind);
+
         public string DisplayName { get; set; } = string.Empty;
 
         public override string ToString()
