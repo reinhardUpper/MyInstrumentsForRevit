@@ -26,6 +26,17 @@ namespace MyInstrumentsForRevit.Filters
 
             view.SetFilterVisibility(filterId, visible);
         }
+
+        public static FilterViewState GetState(View view, ElementId filterId)
+        {
+            if (!view.GetFilters().Contains(filterId))
+            {
+                return FilterViewState.NotApplied;
+            }
+
+            return view.GetFilterVisibility(filterId)
+                ? FilterViewState.Visible
+                : FilterViewState.Hidden;
+        }
     }
 }
-

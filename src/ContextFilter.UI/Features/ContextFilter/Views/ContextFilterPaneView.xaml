@@ -123,16 +123,35 @@
                                       Foreground="{StaticResource TextMutedBrush}" />
                         </UniformGrid>
                     </StackPanel>
-                    <TextBox Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
-                             Tag="&lt;Категория / семейство / тип&gt;"
-                             Margin="0,6,0,0"
-                             Style="{StaticResource SearchBoxStyle}"
-                             ToolTip="Search by name or element parameter" />
-                    <TextBox Text="{Binding ParameterSearchText, UpdateSourceTrigger=PropertyChanged}"
-                             Tag="&lt;Параметр&gt;"
-                             Margin="0,6,0,0"
-                             Style="{StaticResource SearchBoxStyle}"
-                             ToolTip="Filter parameter and value nodes" />
+                    <Grid Margin="0,6,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="64" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="&#1069;&#1083;&#1077;&#1084;&#1077;&#1085;&#1090;&#1099;"
+                                   VerticalAlignment="Center"
+                                   Foreground="{StaticResource TextMutedBrush}"
+                                   FontSize="10" />
+                        <TextBox Grid.Column="1"
+                                 Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
+                                 Style="{StaticResource SearchBoxStyle}"
+                                 ToolTip="Category, family, type, or element parameter text" />
+                    </Grid>
+
+                    <Grid Margin="0,6,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="64" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="&#1055;&#1072;&#1088;&#1072;&#1084;&#1077;&#1090;&#1088;&#1099;"
+                                   VerticalAlignment="Center"
+                                   Foreground="{StaticResource TextMutedBrush}"
+                                   FontSize="10" />
+                        <TextBox Grid.Column="1"
+                                 Text="{Binding ParameterSearchText, UpdateSourceTrigger=PropertyChanged}"
+                                 Style="{StaticResource SearchBoxStyle}"
+                                 ToolTip="Parameter name or value" />
+                    </Grid>
                 </StackPanel>
             </DockPanel>
         </Border>
@@ -158,6 +177,8 @@
                       Background="{StaticResource PaneBackgroundBrush}"
                       BorderThickness="0"
                       ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                      VirtualizingStackPanel.IsVirtualizing="True"
+                      VirtualizingStackPanel.VirtualizationMode="Recycling"
                       Style="{StaticResource ContextTreeViewStyle}" />
 
             <Border Grid.Row="1"
@@ -195,6 +216,8 @@
                              Background="{StaticResource PanelBrush}"
                              BorderThickness="0"
                              Foreground="{StaticResource TextPrimaryBrush}"
+                             VirtualizingStackPanel.IsVirtualizing="True"
+                             VirtualizingStackPanel.VirtualizationMode="Recycling"
                              ScrollViewer.HorizontalScrollBarVisibility="Disabled">
                         <ListBox.ItemTemplate>
                             <DataTemplate>

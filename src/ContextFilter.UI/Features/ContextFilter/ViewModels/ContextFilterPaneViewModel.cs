@@ -3,6 +3,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using ContextFilter.Core.Models;
 using ContextFilter.Core.Services;
+using System.Windows.Threading;
 
 namespace ContextFilter.UI.ViewModels;
 
@@ -13,6 +14,7 @@ public sealed partial class ContextFilterPaneViewModel : ObservableObject, IDisp
 {
     private readonly IContextFilterHost _host;
     private readonly INotificationService _notifications;
+    private readonly DispatcherTimer _filterTimer;
     private bool _disposed;
 
     /// <summary>Creates the pane view model.</summary>
@@ -27,6 +29,11 @@ public sealed partial class ContextFilterPaneViewModel : ObservableObject, IDisp
         FilteredParameterRows = new ObservableCollection<ParameterRowViewModel>();
         SelectedParameterValues = new ObservableCollection<ParameterValueViewModel>();
         CollectorItems = new ObservableCollection<CollectorItemViewModel>();
+        _filterTimer = new DispatcherTimer
+        {
+            Interval = TimeSpan.FromMilliseconds(250)
+        };
+        _filterTimer.Tick += OnFilterTimerTick;
         _host.SelectionSnapshotChanged += OnSelectionSnapshotChanged;
         ApplySnapshot(_host.CurrentSnapshot);
     }
@@ -112,17 +119,17 @@ public sealed partial class ContextFilterPaneViewModel : ObservableObject, IDisp
 
     partial void OnSearchTextChanged(string value)
     {
-        ApplyFilter();
+        ScheduleFilter();
     }
 
     partial void OnSelectedCategoryFilterChanged(string value)
     {
-        ApplyFilter();
+        ScheduleFilter();
     }
 
     partial void OnParameterSearchTextChanged(string value)
     {
-        ApplyFilter();
+        ScheduleFilter();
     }
 
     partial void OnSelectedParameterChanged(ParameterRowViewModel? value)
@@ -408,9 +415,19 @@ public sealed partial class ContextFilterPaneViewModel : ObservableObject, IDisp
 
     private void ApplyFilter()
     {
+        _filterTimer.Stop();
         FilteredRoots.Clear();
+        bool hasTextFilter = !string.IsNullOrWhiteSpace(SearchText)
+            || !string.IsNullOrWhiteSpace(ParameterSearchText);
+
         foreach (var root in Roots.Where(PassesCategoryFilter))
         {
+            if (!hasTextFilter)
+            {
+                FilteredRoots.Add(root);
+                continue;
+            }
+
             var filtered = root.Filter(SearchText, ParameterSearchText);
             if (filtered is not null)
             {
@@ -451,6 +468,17 @@ public sealed partial class ContextFilterPaneViewModel : ObservableObject, IDisp
         node.IsSelected = true;
     }
 
+    private void ScheduleFilter()
+    {
+        _filterTimer.Stop();
+        _filterTimer.Start();
+    }
+
+    private void OnFilterTimerTick(object? sender, EventArgs e)
+    {
+        ApplyFilter();
+    }
+
     /// <inheritdoc />
     public void Dispose()
     {
@@ -460,6 +488,8 @@ public sealed partial class ContextFilterPaneViewModel : ObservableObject, IDisp
         }
 
         _host.SelectionSnapshotChanged -= OnSelectionSnapshotChanged;
+        _filterTimer.Stop();
+        _filterTimer.Tick -= OnFilterTimerTick;
         _disposed = true;
     }
 }

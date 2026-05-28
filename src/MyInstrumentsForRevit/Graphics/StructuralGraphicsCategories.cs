@@ -14,8 +14,8 @@ namespace MyInstrumentsForRevit.Graphics
 
         public static readonly BuiltInCategory[] RebarCategories =
         {
-            BuiltInCategory.OST_Rebar
+            BuiltInCategory.OST_Rebar,
+            BuiltInCategory.OST_AreaRein
         };
     }
 }
-

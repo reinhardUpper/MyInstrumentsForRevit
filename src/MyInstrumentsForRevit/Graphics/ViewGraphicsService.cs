@@ -55,22 +55,29 @@ namespace MyInstrumentsForRevit.Graphics
             bool hideSurfacePatterns)
         {
             Category category = Category.GetCategory(document, builtInCategory);
-            if (category == null)
+            if (!CanOverrideCategory(category, view))
             {
                 return;
             }
 
-            OverrideGraphicSettings settings = view.GetCategoryOverrides(category.Id);
-            settings.SetProjectionLineWeight(lineWeight);
-            settings.SetCutLineWeight(lineWeight);
-
-            if (hideSurfacePatterns)
+            try
             {
-                settings.SetSurfaceForegroundPatternVisible(false);
-                settings.SetCutForegroundPatternVisible(false);
-            }
+                OverrideGraphicSettings settings = view.GetCategoryOverrides(category.Id);
+                settings.SetProjectionLineWeight(lineWeight);
+                settings.SetCutLineWeight(lineWeight);
 
-            view.SetCategoryOverrides(category.Id, settings);
+                if (hideSurfacePatterns)
+                {
+                    settings.SetSurfaceForegroundPatternVisible(false);
+                    settings.SetCutForegroundPatternVisible(false);
+                }
+
+                view.SetCategoryOverrides(category.Id, settings);
+            }
+            catch (Autodesk.Revit.Exceptions.ArgumentException)
+            {
+                // Some categories are visible but cannot be overridden in certain view contexts.
+            }
         }
 
         private static void ApplyCategoryPatternSettings(
@@ -79,15 +86,39 @@ namespace MyInstrumentsForRevit.Graphics
             BuiltInCategory builtInCategory)
         {
             Category category = Category.GetCategory(document, builtInCategory);
-            if (category == null)
+            if (!CanOverrideCategory(category, view))
             {
                 return;
             }
 
-            OverrideGraphicSettings settings = view.GetCategoryOverrides(category.Id);
-            settings.SetSurfaceForegroundPatternVisible(false);
-            settings.SetCutForegroundPatternVisible(false);
-            view.SetCategoryOverrides(category.Id, settings);
+            try
+            {
+                OverrideGraphicSettings settings = view.GetCategoryOverrides(category.Id);
+                settings.SetSurfaceForegroundPatternVisible(false);
+                settings.SetCutForegroundPatternVisible(false);
+                view.SetCategoryOverrides(category.Id, settings);
+            }
+            catch (Autodesk.Revit.Exceptions.ArgumentException)
+            {
+                // Some categories are visible but cannot be overridden in certain view contexts.
+            }
+        }
+
+        private static bool CanOverrideCategory(Category category, View view)
+        {
+            if (category == null)
+            {
+                return false;
+            }
+
+            try
+            {
+                return category.get_AllowsVisibilityControl(view);
+            }
+            catch (Autodesk.Revit.Exceptions.ArgumentException)
+            {
+                return false;
+            }
         }
     }
 }

@@ -192,24 +192,36 @@ namespace MyInstrumentsForRevit.CommandLine
                 return;
             }
 
-            var window = new FilterSearchWindow(FilterCacheService.Filters);
-            if (window.ShowDialog() != true || window.SelectedFilter == null)
-            {
-                return;
-            }
+            var window = new FilterSearchWindow(
+                FilterCacheService.Filters,
+                view,
+                (selectedFilter, makeVisible) => ApplyCommandLineFilterVisibility(document, view, selectedFilter, makeVisible));
+            window.ShowDialog();
 
-            if (!FilterCacheService.Exists(document, window.SelectedFilter))
+            if (window.SelectedFilter != null && !FilterCacheService.Exists(document, window.SelectedFilter))
             {
                 TaskDialog.Show("Командная строка", "Фильтр был удален или переименован. Обновите список фильтров.");
                 return;
             }
 
+        }
+
+        private static bool ApplyCommandLineFilterVisibility(Document document, View view, FilterItem selectedFilter, bool makeVisible)
+        {
+            if (!FilterCacheService.Exists(document, selectedFilter))
+            {
+                TaskDialog.Show("Командная строка", "Фильтр был удален или переименован. Обновите список фильтров.");
+                return false;
+            }
+
             using (var transaction = new Transaction(document, "Command line: apply view filter"))
             {
                 transaction.Start();
-                ViewFilterApplicator.ApplyVisibility(view, window.SelectedFilter.Id, window.MakeVisible);
+                ViewFilterApplicator.ApplyVisibility(view, selectedFilter.Id, makeVisible);
                 transaction.Commit();
             }
+
+            return true;
         }
 
         private static void ToggleStructuralHatches(UIApplication uiApplication)

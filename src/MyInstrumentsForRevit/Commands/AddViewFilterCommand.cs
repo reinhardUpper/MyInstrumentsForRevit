@@ -37,34 +37,30 @@ namespace MyInstrumentsForRevit.Commands
                 return Result.Cancelled;
             }
 
-            var window = new FilterSearchWindow(FilterCacheService.Filters);
-            bool? result = window.ShowDialog();
-            if (result != true)
-            {
-                return Result.Cancelled;
-            }
+            var window = new FilterSearchWindow(
+                FilterCacheService.Filters,
+                view,
+                (selectedFilter, makeVisible) => ApplyFilterVisibility(document, view, selectedFilter, makeVisible));
+            window.ShowDialog();
+            return Result.Succeeded;
+        }
 
-            FilterItem? selectedFilter = window.SelectedFilter;
-            if (selectedFilter == null)
-            {
-                TaskDialog.Show("Фильтры вида", "Фильтр не выбран.");
-                return Result.Cancelled;
-            }
-
+        private static bool ApplyFilterVisibility(Document document, View view, FilterItem selectedFilter, bool makeVisible)
+        {
             if (!FilterCacheService.Exists(document, selectedFilter))
             {
                 TaskDialog.Show("Фильтры вида", "Фильтр был удален или переименован после обновления списка. Обновите список фильтров.");
-                return Result.Cancelled;
+                return false;
             }
 
             using (var transaction = new Transaction(document, "Apply view filter visibility"))
             {
                 transaction.Start();
-                ViewFilterApplicator.ApplyVisibility(view, selectedFilter.Id, window.MakeVisible);
+                ViewFilterApplicator.ApplyVisibility(view, selectedFilter.Id, makeVisible);
                 transaction.Commit();
             }
 
-            return Result.Succeeded;
+            return true;
         }
     }
 }
