@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using Autodesk.Revit.DB;
 
 namespace MyInstrumentsForRevit.Graphics
@@ -19,10 +20,29 @@ namespace MyInstrumentsForRevit.Graphics
 
         public static void HideStructuralCategoryPatterns(Document document, View view)
         {
+            View targetView = GetGraphicsTargetView(document, view);
             foreach (BuiltInCategory category in StructuralGraphicsCategories.MainCategories)
             {
-                ApplyCategoryPatternSettings(document, view, category);
+                ApplyCategoryPatternSettings(document, targetView, category);
             }
+        }
+
+        public static View GetGraphicsTargetView(Document document, View view)
+        {
+            if (view.ViewTemplateId == ElementId.InvalidElementId)
+            {
+                return view;
+            }
+
+            return document.GetElement(view.ViewTemplateId) as View ?? view;
+        }
+
+        public static void HideLinksAndImportedCategories(Document document, View view)
+        {
+            SetCategoriesHidden(document, view, StructuralGraphicsCategories.LinkAndImportCategories, true);
+            HideImportSubcategories(document, view);
+            HideElementsOfClass<RevitLinkInstance>(document, view);
+            HideElementsOfClass<ImportInstance>(document, view);
         }
 
         public static void SetCategoriesHidden(
@@ -69,7 +89,9 @@ namespace MyInstrumentsForRevit.Graphics
                 if (hideSurfacePatterns)
                 {
                     settings.SetSurfaceForegroundPatternVisible(false);
+                    settings.SetSurfaceBackgroundPatternVisible(false);
                     settings.SetCutForegroundPatternVisible(false);
+                    settings.SetCutBackgroundPatternVisible(false);
                 }
 
                 view.SetCategoryOverrides(category.Id, settings);
@@ -95,7 +117,9 @@ namespace MyInstrumentsForRevit.Graphics
             {
                 OverrideGraphicSettings settings = view.GetCategoryOverrides(category.Id);
                 settings.SetSurfaceForegroundPatternVisible(false);
+                settings.SetSurfaceBackgroundPatternVisible(false);
                 settings.SetCutForegroundPatternVisible(false);
+                settings.SetCutBackgroundPatternVisible(false);
                 view.SetCategoryOverrides(category.Id, settings);
             }
             catch (Autodesk.Revit.Exceptions.ArgumentException)
@@ -118,6 +142,41 @@ namespace MyInstrumentsForRevit.Graphics
             catch (Autodesk.Revit.Exceptions.ArgumentException)
             {
                 return false;
+            }
+        }
+
+        private static void HideImportSubcategories(Document document, View view)
+        {
+            Category importsCategory = Category.GetCategory(document, BuiltInCategory.OST_ImportObjectStyles);
+            if (importsCategory == null)
+            {
+                return;
+            }
+
+            foreach (Category subcategory in importsCategory.SubCategories)
+            {
+                if (subcategory == null || !view.CanCategoryBeHidden(subcategory.Id))
+                {
+                    continue;
+                }
+
+                view.SetCategoryHidden(subcategory.Id, true);
+            }
+        }
+
+        private static void HideElementsOfClass<TElement>(Document document, View view)
+            where TElement : Element
+        {
+            List<ElementId> ids = new FilteredElementCollector(document, view.Id)
+                .OfClass(typeof(TElement))
+                .WhereElementIsNotElementType()
+                .Where(element => element.CanBeHidden(view))
+                .Select(element => element.Id)
+                .ToList();
+
+            if (ids.Count > 0)
+            {
+                view.HideElements(ids);
             }
         }
     }

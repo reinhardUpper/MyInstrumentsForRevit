@@ -59,6 +59,12 @@ public sealed partial class ContextFilterPaneViewModel : ObservableObject, IDisp
     /// <summary>Visual collector with element groups added from the tree.</summary>
     public ObservableCollection<CollectorItemViewModel> CollectorItems { get; }
 
+    /// <summary>True when parameter search should replace the tree with a flat parameter list.</summary>
+    public bool IsParameterSearchActive => !string.IsNullOrWhiteSpace(ParameterSearchText);
+
+    /// <summary>True when the grouped element tree should be displayed.</summary>
+    public bool IsTreeVisible => !IsParameterSearchActive;
+
     /// <summary>Current selection total.</summary>
     [ObservableProperty]
     private int totalCount;
@@ -71,8 +77,10 @@ public sealed partial class ContextFilterPaneViewModel : ObservableObject, IDisp
     [ObservableProperty]
     private string selectedCategoryFilter = "All categories";
 
-    /// <summary>Search text used to filter parameter names and values.</summary>
+    /// <summary>Search text used to filter parameter names.</summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsParameterSearchActive))]
+    [NotifyPropertyChangedFor(nameof(IsTreeVisible))]
     private string parameterSearchText = string.Empty;
 
     /// <summary>Selected parameter row whose values are displayed below the parameter list.</summary>
@@ -81,8 +89,6 @@ public sealed partial class ContextFilterPaneViewModel : ObservableObject, IDisp
 
     /// <summary>Active node used by toolbar commands.</summary>
     [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(SelectCommand))]
-    [NotifyCanExecuteChangedFor(nameof(IsolateCommand))]
     [NotifyCanExecuteChangedFor(nameof(AddToCollectorCommand))]
     private FilterNodeViewModel? selectedNode;
 
@@ -137,6 +143,8 @@ public sealed partial class ContextFilterPaneViewModel : ObservableObject, IDisp
         SelectedParameterValues.Clear();
         if (value is null)
         {
+            SelectCommand.NotifyCanExecuteChanged();
+            IsolateCommand.NotifyCanExecuteChanged();
             return;
         }
 
@@ -146,6 +154,8 @@ public sealed partial class ContextFilterPaneViewModel : ObservableObject, IDisp
         }
 
         StatusText = $"{value.Name}: {value.ValueCount} values";
+        SelectCommand.NotifyCanExecuteChanged();
+        IsolateCommand.NotifyCanExecuteChanged();
     }
 
     partial void OnUseSelectedElementsChanged(bool value)
@@ -274,29 +284,31 @@ public sealed partial class ContextFilterPaneViewModel : ObservableObject, IDisp
     }
 
     /// <summary>Selects elements represented by the active group.</summary>
-    [RelayCommand(CanExecute = nameof(HasSelectedNode))]
+    [RelayCommand(CanExecute = nameof(HasActionTarget))]
     private async Task SelectAsync()
     {
-        if (SelectedNode is null)
+        var ids = GetActionElementIds();
+        if (ids.Count == 0)
         {
             return;
         }
 
-        await _host.SelectAsync(SelectedNode.ElementIds).ConfigureAwait(true);
-        StatusText = $"Selected: {SelectedNode.Count}";
+        await _host.SelectAsync(ids).ConfigureAwait(true);
+        StatusText = $"Selected: {ids.Count}";
     }
 
     /// <summary>Isolates elements represented by the active group in the active view.</summary>
-    [RelayCommand(CanExecute = nameof(HasSelectedNode))]
+    [RelayCommand(CanExecute = nameof(HasActionTarget))]
     private async Task IsolateAsync()
     {
-        if (SelectedNode is null)
+        var ids = GetActionElementIds();
+        if (ids.Count == 0)
         {
             return;
         }
 
-        await _host.IsolateAsync(SelectedNode.ElementIds).ConfigureAwait(true);
-        StatusText = $"Isolated: {SelectedNode.Count}";
+        await _host.IsolateAsync(ids).ConfigureAwait(true);
+        StatusText = $"Isolated: {ids.Count}";
     }
 
     /// <summary>Clears temporary isolate mode in the active Revit view.</summary>
@@ -369,6 +381,36 @@ public sealed partial class ContextFilterPaneViewModel : ObservableObject, IDisp
 
     private bool HasSelectedNode() => SelectedNode is not null && SelectedNode.ElementIds.Count > 0;
 
+    private bool HasActionTarget() => GetActionElementIds().Count > 0;
+
+    private IReadOnlyCollection<int> GetActionElementIds()
+    {
+        if (IsParameterSearchActive)
+        {
+            IEnumerable<ParameterRowViewModel> parameterRows = SelectedParameter is null
+                ? FilteredParameterRows
+                : new[] { SelectedParameter };
+
+            return parameterRows
+                .SelectMany(parameter => parameter.Values)
+                .SelectMany(value => value.ElementIds)
+                .Distinct()
+                .OrderBy(id => id)
+                .ToList();
+        }
+
+        if (SelectedNode is not null && SelectedNode.ElementIds.Count > 0)
+        {
+            return SelectedNode.ElementIds;
+        }
+
+        return FilteredRoots
+            .SelectMany(root => root.ElementIds)
+            .Distinct()
+            .OrderBy(id => id)
+            .ToList();
+    }
+
     private IReadOnlyCollection<int> GetCollectorElementIds()
     {
         return CollectorItems
@@ -416,9 +458,10 @@ public sealed partial class ContextFilterPaneViewModel : ObservableObject, IDisp
     private void ApplyFilter()
     {
         _filterTimer.Stop();
+        ClearSelectedNode();
         FilteredRoots.Clear();
-        bool hasTextFilter = !string.IsNullOrWhiteSpace(SearchText)
-            || !string.IsNullOrWhiteSpace(ParameterSearchText);
+        FilteredParameterRows.Clear();
+        bool hasTextFilter = !string.IsNullOrWhiteSpace(SearchText);
 
         foreach (var root in Roots.Where(PassesCategoryFilter))
         {
@@ -428,12 +471,16 @@ public sealed partial class ContextFilterPaneViewModel : ObservableObject, IDisp
                 continue;
             }
 
-            var filtered = root.Filter(SearchText, ParameterSearchText);
+            var filtered = root.Filter(SearchText, string.Empty);
             if (filtered is not null)
             {
                 FilteredRoots.Add(filtered);
             }
         }
+
+        RebuildFilteredParameterRows();
+        SelectCommand.NotifyCanExecuteChanged();
+        IsolateCommand.NotifyCanExecuteChanged();
     }
 
     private bool PassesCategoryFilter(FilterNodeViewModel root)
@@ -466,6 +513,78 @@ public sealed partial class ContextFilterPaneViewModel : ObservableObject, IDisp
 
         SelectedNode = node;
         node.IsSelected = true;
+        SelectCommand.NotifyCanExecuteChanged();
+        IsolateCommand.NotifyCanExecuteChanged();
+    }
+
+    private void ClearSelectedNode()
+    {
+        if (SelectedNode is null)
+        {
+            return;
+        }
+
+        SelectedNode.IsSelected = false;
+        SelectedNode = null;
+    }
+
+    private void RebuildFilteredParameterRows()
+    {
+        if (string.IsNullOrWhiteSpace(ParameterSearchText))
+        {
+            SelectedParameter = null;
+            return;
+        }
+
+        var rows = Roots
+            .Where(PassesCategoryFilter)
+            .SelectMany(EnumerateNodes)
+            .SelectMany(node => node.Parameters)
+            .Where(parameter => parameter.Name.IndexOf(ParameterSearchText, StringComparison.CurrentCultureIgnoreCase) >= 0)
+            .GroupBy(parameter => parameter.Name, StringComparer.CurrentCultureIgnoreCase)
+            .Select(group => CreateMergedParameterRow(group.Key, group))
+            .OrderBy(parameter => parameter.Name)
+            .ToList();
+
+        foreach (var row in rows)
+        {
+            FilteredParameterRows.Add(row);
+        }
+
+        if (SelectedParameter is null || rows.All(row => !string.Equals(row.Name, SelectedParameter.Name, StringComparison.CurrentCultureIgnoreCase)))
+        {
+            SelectedParameter = rows.FirstOrDefault();
+        }
+    }
+
+    private static IEnumerable<FilterNodeViewModel> EnumerateNodes(FilterNodeViewModel node)
+    {
+        yield return node;
+
+        foreach (var child in node.Children.SelectMany(EnumerateNodes))
+        {
+            yield return child;
+        }
+    }
+
+    private static ParameterRowViewModel CreateMergedParameterRow(string name, IEnumerable<ParameterRowViewModel> rows)
+    {
+        var values = rows
+            .SelectMany(row => row.Values)
+            .GroupBy(value => value.Value, StringComparer.CurrentCultureIgnoreCase)
+            .Select(group => new FilterParameterValue(
+                group.Key,
+                group.SelectMany(value => value.ElementIds).Distinct().OrderBy(id => id).ToList()))
+            .OrderByDescending(value => value.Count)
+            .ThenBy(value => value.Value)
+            .ToList();
+
+        int elementCount = values
+            .SelectMany(value => value.ElementIds)
+            .Distinct()
+            .Count();
+
+        return new ParameterRowViewModel(name, values, elementCount);
     }
 
     private void ScheduleFilter()

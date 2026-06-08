@@ -150,7 +150,7 @@
                         <TextBox Grid.Column="1"
                                  Text="{Binding ParameterSearchText, UpdateSourceTrigger=PropertyChanged}"
                                  Style="{StaticResource SearchBoxStyle}"
-                                 ToolTip="Parameter name or value" />
+                                 ToolTip="Parameter name" />
                     </Grid>
                 </StackPanel>
             </DockPanel>
@@ -179,7 +179,53 @@
                       ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                       VirtualizingStackPanel.IsVirtualizing="True"
                       VirtualizingStackPanel.VirtualizationMode="Recycling"
-                      Style="{StaticResource ContextTreeViewStyle}" />
+                      Style="{StaticResource ContextTreeViewStyle}"
+                      Visibility="{Binding IsTreeVisible, Converter={StaticResource BooleanToVisibilityConverter}}" />
+
+            <ListBox ItemsSource="{Binding FilteredParameterRows}"
+                     SelectedItem="{Binding SelectedParameter, Mode=TwoWay}"
+                     Padding="4,8"
+                     Background="{StaticResource PaneBackgroundBrush}"
+                     BorderThickness="0"
+                     Foreground="{StaticResource TextPrimaryBrush}"
+                     ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                     VirtualizingStackPanel.IsVirtualizing="True"
+                     VirtualizingStackPanel.VirtualizationMode="Recycling"
+                     Visibility="{Binding IsParameterSearchActive, Converter={StaticResource BooleanToVisibilityConverter}}">
+                <ListBox.ItemTemplate>
+                    <DataTemplate>
+                        <Grid Margin="0,2"
+                              MinHeight="34">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel>
+                                <TextBlock Text="{Binding Name}"
+                                           Foreground="{StaticResource TextPrimaryBrush}"
+                                           FontWeight="SemiBold"
+                                           TextTrimming="CharacterEllipsis" />
+                                <TextBlock Text="{Binding Preview}"
+                                           Foreground="{StaticResource TextMutedBrush}"
+                                           FontSize="11"
+                                           TextTrimming="CharacterEllipsis" />
+                            </StackPanel>
+                            <Border Grid.Column="1"
+                                    MinWidth="28"
+                                    Margin="8,0,0,0"
+                                    Padding="6,1"
+                                    VerticalAlignment="Center"
+                                    CornerRadius="8"
+                                    Background="{StaticResource CounterBackgroundBrush}">
+                                <TextBlock Text="{Binding ElementCount}"
+                                           HorizontalAlignment="Center"
+                                           Foreground="{StaticResource TextMutedBrush}"
+                                           FontSize="11" />
+                            </Border>
+                        </Grid>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
 
             <Border Grid.Row="1"
                     Padding="8"

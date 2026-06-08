@@ -18,6 +18,7 @@ namespace MyInstrumentsForRevit.Commands
                 transaction.Start();
                 ViewGraphicsService.ApplyStructuralCategorySettings(document, view, 4, true);
                 ViewGraphicsService.SetCategoriesHidden(document, view, StructuralGraphicsCategories.RebarCategories, true);
+                ViewGraphicsService.HideLinksAndImportedCategories(document, view);
                 transaction.Commit();
             }
 
@@ -25,4 +26,3 @@ namespace MyInstrumentsForRevit.Commands
         }
     }
 }
-

@@ -15,6 +15,12 @@ public sealed class ParameterRowViewModel
         _parameter = parameter;
     }
 
+    /// <summary>Creates a parameter row from aggregated search results.</summary>
+    public ParameterRowViewModel(string name, IReadOnlyList<FilterParameterValue> values, int elementCount)
+        : this(new FilterParameter(name, values, elementCount))
+    {
+    }
+
     /// <summary>Parameter display name.</summary>
     public string Name => _parameter.Name;
 
@@ -31,7 +37,7 @@ public sealed class ParameterRowViewModel
     public IReadOnlyList<ParameterValueViewModel> Values =>
         _parameter.Values.Select(value => new ParameterValueViewModel(value)).ToList();
 
-    /// <summary>True when the row or one of its values matches the query.</summary>
+    /// <summary>True when the row name matches the query.</summary>
     public bool Matches(string query)
     {
         if (string.IsNullOrWhiteSpace(query))
@@ -39,7 +45,6 @@ public sealed class ParameterRowViewModel
             return true;
         }
 
-        return Name.IndexOf(query, StringComparison.CurrentCultureIgnoreCase) >= 0
-            || Values.Any(value => value.Value.IndexOf(query, StringComparison.CurrentCultureIgnoreCase) >= 0);
+        return Name.IndexOf(query, StringComparison.CurrentCultureIgnoreCase) >= 0;
     }
 }

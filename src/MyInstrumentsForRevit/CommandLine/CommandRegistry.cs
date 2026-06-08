@@ -25,9 +25,6 @@ namespace MyInstrumentsForRevit.CommandLine
         static CommandRegistry()
         {
             Register("help", "Список команд", "Показать список доступных команд.", ShowHelp);
-            Register("alias.path", "Путь к alias", "Показать путь к пользовательскому файлу alias.", ShowAliasPath);
-            Register("alias.reload", "Перечитать alias", "Перечитать пользовательский файл alias.", ReloadAliases);
-
             Register("filters.refresh", "Обновить фильтры", "Обновить кэш фильтров проекта.", RefreshFilters);
             Register("filters.add", "Добавить фильтр на вид", "Открыть поиск фильтра и добавить/переключить его на активном виде.", AddViewFilter);
 
@@ -37,6 +34,7 @@ namespace MyInstrumentsForRevit.CommandLine
             Register("graphics.revit_links", "Revit связи", "Скрыть или вернуть Revit-связи на активном виде.", ToggleRevitLinks);
             Register("rebar.toggle", "Вкл/выкл арматуру", "Включить или выключить категорию несущей арматуры на активном виде.", ToggleRebar);
             Register("view.3d", "Настроить 3D вид", "Применить стандартную настройку активного 3D вида.", Configure3DView);
+            Register("view.grids", "Оси вида", "Подрезать оси на текущем виде и поставить размеры.", ArrangeGridsOnCurrentView);
             Register("sheet.duplicate", "Дубль листа", "Дублировать активный лист.", DuplicateActiveSheet);
 
             Register("quick.manager", "Менеджер размеров", "Открыть менеджер быстрых пресетов БК1-БК4.", OpenQuickCommandManager);
@@ -52,10 +50,7 @@ namespace MyInstrumentsForRevit.CommandLine
         {
             get
             {
-                CommandAliasService.EnsureLoaded();
-                Dictionary<string, RegisteredCommand> executableCommands = GetExecutableCommands();
-                return executableCommands.Values
-                    .Concat(CommandAliasService.BuildAliasCommands(executableCommands))
+                return GetExecutableCommands().Values
                     .OrderBy(command => command.Name, StringComparer.OrdinalIgnoreCase)
                     .ToList();
             }
@@ -88,11 +83,9 @@ namespace MyInstrumentsForRevit.CommandLine
                 return false;
             }
 
-            CommandAliasService.EnsureLoaded();
-            string resolvedCommandName = CommandAliasService.Resolve(commandName);
             Dictionary<string, RegisteredCommand> executableCommands = GetExecutableCommands();
 
-            if (!executableCommands.TryGetValue(resolvedCommandName, out RegisteredCommand command))
+            if (!executableCommands.TryGetValue(commandName, out RegisteredCommand command))
             {
                 error = "Команда не найдена: " + commandName;
                 return false;
@@ -150,18 +143,6 @@ namespace MyInstrumentsForRevit.CommandLine
                 AllCommands.Select(command => command.Name + " - " + command.Description));
 
             TaskDialog.Show("Командная строка", commands);
-        }
-
-        private static void ShowAliasPath(UIApplication uiApplication)
-        {
-            CommandAliasService.EnsureLoaded();
-            TaskDialog.Show("Командная строка", CommandAliasService.AliasFilePath);
-        }
-
-        private static void ReloadAliases(UIApplication uiApplication)
-        {
-            CommandAliasService.Reload();
-            TaskDialog.Show("Командная строка", "Alias перечитаны: " + CommandAliasService.CurrentAliases.Count);
         }
 
         private static void RefreshFilters(UIApplication uiApplication)
@@ -228,18 +209,19 @@ namespace MyInstrumentsForRevit.CommandLine
         {
             Document document = GetDocument(uiApplication);
             View view = document.ActiveView;
+            View targetView = ViewGraphicsService.GetGraphicsTargetView(document, view);
 
             using (var transaction = new Transaction(document, "Command line: toggle structural hatches"))
             {
                 transaction.Start();
-                if (CategoryGraphicsStateStore.HasSavedState(document, view))
+                if (CategoryGraphicsStateStore.HasSavedState(document, targetView))
                 {
-                    CategoryGraphicsStateStore.Restore(document, view);
+                    CategoryGraphicsStateStore.Restore(document, targetView);
                 }
                 else
                 {
-                    CategoryGraphicsStateStore.Save(document, view, StructuralGraphicsCategories.MainCategories);
-                    ViewGraphicsService.HideStructuralCategoryPatterns(document, view);
+                    CategoryGraphicsStateStore.Save(document, targetView, StructuralGraphicsCategories.MainCategories);
+                    ViewGraphicsService.HideStructuralCategoryPatterns(document, targetView);
                 }
 
                 transaction.Commit();
@@ -268,6 +250,7 @@ namespace MyInstrumentsForRevit.CommandLine
                 transaction.Start();
                 ViewGraphicsService.ApplyStructuralCategorySettings(document, view, 4, true);
                 ViewGraphicsService.SetCategoriesHidden(document, view, StructuralGraphicsCategories.RebarCategories, true);
+                ViewGraphicsService.HideLinksAndImportedCategories(document, view);
                 transaction.Commit();
             }
         }
@@ -364,6 +347,11 @@ namespace MyInstrumentsForRevit.CommandLine
                 SetModelCategoriesTransparency(document, view3D, 20);
                 transaction.Commit();
             }
+        }
+
+        private static void ArrangeGridsOnCurrentView(UIApplication uiApplication)
+        {
+            ArrangeGridsOnCurrentViewCommand.ExecuteFromCommandLine(uiApplication);
         }
 
         private static void OpenQuickCommandManager(UIApplication uiApplication)

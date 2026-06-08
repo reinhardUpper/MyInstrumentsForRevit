@@ -12,19 +12,20 @@ namespace MyInstrumentsForRevit.Commands
         {
             Document document = commandData.Application.ActiveUIDocument.Document;
             View view = document.ActiveView;
+            View targetView = ViewGraphicsService.GetGraphicsTargetView(document, view);
 
             using (var transaction = new Transaction(document, "Toggle structural hatches"))
             {
                 transaction.Start();
 
-                if (CategoryGraphicsStateStore.HasSavedState(document, view))
+                if (CategoryGraphicsStateStore.HasSavedState(document, targetView))
                 {
-                    CategoryGraphicsStateStore.Restore(document, view);
+                    CategoryGraphicsStateStore.Restore(document, targetView);
                 }
                 else
                 {
-                    CategoryGraphicsStateStore.Save(document, view, StructuralGraphicsCategories.MainCategories);
-                    ViewGraphicsService.HideStructuralCategoryPatterns(document, view);
+                    CategoryGraphicsStateStore.Save(document, targetView, StructuralGraphicsCategories.MainCategories);
+                    ViewGraphicsService.HideStructuralCategoryPatterns(document, targetView);
                 }
 
                 transaction.Commit();

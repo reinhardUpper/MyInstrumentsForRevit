@@ -17,5 +17,11 @@ namespace MyInstrumentsForRevit.Graphics
             BuiltInCategory.OST_Rebar,
             BuiltInCategory.OST_AreaRein
         };
+
+        public static readonly BuiltInCategory[] LinkAndImportCategories =
+        {
+            BuiltInCategory.OST_RvtLinks,
+            BuiltInCategory.OST_ImportObjectStyles
+        };
     }
 }
