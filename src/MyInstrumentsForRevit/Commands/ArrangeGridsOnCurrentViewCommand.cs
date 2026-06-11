@@ -15,8 +15,10 @@ namespace MyInstrumentsForRevit.Commands
         private const double MmToFeet = 1.0 / 304.8;
         private const double BubbleOffset = 2500.0 * MmToFeet;
         private const double CropOffset = 3000.0 * MmToFeet;
-        private const double DimensionOffset = 1700.0 * MmToFeet;
+        private const double FirstDimensionOffset = 1000.0 * MmToFeet;
+        private const double OverallDimensionOffset = 1700.0 * MmToFeet;
         private const double DirectionTolerance = 0.10;
+        private const double BoundsTolerance = 1.0e-6;
         private const string FilterPrefix = "КЖ. Оси - оставить";
 
         public Result Execute(ExternalCommandData commandData, ref string message, ElementSet elements)
@@ -59,7 +61,7 @@ namespace MyInstrumentsForRevit.Commands
             PickedFloor pickedFloor = PickFloor(uiDocument, document);
             ViewBounds floorBounds = GetFloorBoundsOnView(document, view, pickedFloor);
 
-            IList<Grid> allGrids = new FilteredElementCollector(document)
+            IList<Grid> allGrids = new FilteredElementCollector(document, view.Id)
                 .OfClass(typeof(Grid))
                 .WhereElementIsNotElementType()
                 .Cast<Grid>()
@@ -84,7 +86,7 @@ namespace MyInstrumentsForRevit.Commands
 
                 SetCrop(view, floorBounds.Expand(CropOffset));
                 RemoveOldGridFilters(document, view);
-                CreateHiddenGridFilter(document, view, hiddenGridIds, suffix);
+                TryCreateHiddenGridFilter(document, view, hiddenGridIds, suffix);
 
                 foreach (Grid grid in gridsToProcess)
                 {
@@ -196,62 +198,74 @@ namespace MyInstrumentsForRevit.Commands
         {
             direction = GridDirection.Unknown;
 
-            if (!IsGridAvailableOnView(grid, view))
-            {
-                return false;
-            }
-
             try
             {
+                if (!IsGridAvailableOnView(grid, view))
+                {
+                    return false;
+                }
+
                 grid.SetDatumExtentType(DatumEnds.End0, view, DatumExtentType.ViewSpecific);
                 grid.SetDatumExtentType(DatumEnds.End1, view, DatumExtentType.ViewSpecific);
+
+                Curve curve = grid.GetCurvesInView(DatumExtentType.ViewSpecific, view).FirstOrDefault();
+                var line = curve as Line;
+                if (line == null)
+                {
+                    return false;
+                }
+
+                UVPoint start = ToViewPoint(view, line.GetEndPoint(0));
+                UVPoint end = ToViewPoint(view, line.GetEndPoint(1));
+                double deltaU = end.U - start.U;
+                double deltaV = end.V - start.V;
+                double length = Math.Sqrt(deltaU * deltaU + deltaV * deltaV);
+                if (length < 1.0e-8)
+                {
+                    return false;
+                }
+
+                double directionU = deltaU / length;
+                double directionV = deltaV / length;
+
+                if (Math.Abs(directionU) <= DirectionTolerance)
+                {
+                    direction = GridDirection.Vertical;
+                    if (Math.Abs(directionV) < 1.0e-8)
+                    {
+                        return false;
+                    }
+
+                    XYZ bubble = PointOnLineAtViewV(line, start.V, directionV, bounds.MinV - BubbleOffset);
+                    XYZ tail = PointOnLineAtViewV(line, start.V, directionV, bounds.MaxV);
+                    SetGridCurveAndBubble(grid, view, bubble, tail);
+                    return true;
+                }
+
+                if (Math.Abs(directionV) <= DirectionTolerance)
+                {
+                    direction = GridDirection.Horizontal;
+                    if (Math.Abs(directionU) < 1.0e-8)
+                    {
+                        return false;
+                    }
+
+                    XYZ bubble = PointOnLineAtViewU(line, start.U, directionU, bounds.MinU - BubbleOffset);
+                    XYZ tail = PointOnLineAtViewU(line, start.U, directionU, bounds.MaxU);
+                    SetGridCurveAndBubble(grid, view, bubble, tail);
+                    return true;
+                }
+
+                return false;
             }
             catch (Autodesk.Revit.Exceptions.ArgumentException)
             {
                 return false;
             }
-
-            Curve curve = grid.GetCurvesInView(DatumExtentType.ViewSpecific, view).FirstOrDefault();
-            var line = curve as Line;
-            if (line == null)
+            catch (Autodesk.Revit.Exceptions.InvalidOperationException)
             {
                 return false;
             }
-
-            UVPoint start = ToViewPoint(view, line.GetEndPoint(0));
-            UVPoint end = ToViewPoint(view, line.GetEndPoint(1));
-            double deltaU = end.U - start.U;
-            double deltaV = end.V - start.V;
-            double length = Math.Sqrt(deltaU * deltaU + deltaV * deltaV);
-            if (length < 1.0e-8)
-            {
-                return false;
-            }
-
-            double directionU = deltaU / length;
-            double directionV = deltaV / length;
-
-            if (Math.Abs(directionU) <= DirectionTolerance)
-            {
-                direction = GridDirection.Vertical;
-                double u = (start.U + end.U) * 0.5;
-                XYZ bubble = ToModelPoint(view, u, bounds.MinV - BubbleOffset);
-                XYZ tail = ToModelPoint(view, u, bounds.MaxV);
-                SetGridCurveAndBubble(grid, view, bubble, tail);
-                return true;
-            }
-
-            if (Math.Abs(directionV) <= DirectionTolerance)
-            {
-                direction = GridDirection.Horizontal;
-                double v = (start.V + end.V) * 0.5;
-                XYZ bubble = ToModelPoint(view, bounds.MinU - BubbleOffset, v);
-                XYZ tail = ToModelPoint(view, bounds.MaxU, v);
-                SetGridCurveAndBubble(grid, view, bubble, tail);
-                return true;
-            }
-
-            return false;
         }
 
         private static bool IsGridAvailableOnView(Grid grid, View view)
@@ -262,6 +276,10 @@ namespace MyInstrumentsForRevit.Commands
                     && grid.GetCurvesInView(DatumExtentType.Model, view).Count > 0;
             }
             catch (Autodesk.Revit.Exceptions.ArgumentException)
+            {
+                return false;
+            }
+            catch (Autodesk.Revit.Exceptions.InvalidOperationException)
             {
                 return false;
             }
@@ -276,7 +294,12 @@ namespace MyInstrumentsForRevit.Commands
             ShowBubble(grid, view, DatumEnds.End0);
         }
 
-        private static void CreateGridDimensions(Document document, View view, ViewBounds bounds, IList<Grid> verticalGrids, IList<Grid> horizontalGrids)
+        private static void CreateGridDimensions(
+            Document document,
+            View view,
+            ViewBounds bounds,
+            IList<Grid> verticalGrids,
+            IList<Grid> horizontalGrids)
         {
             DimensionType dimensionType = new FilteredElementCollector(document)
                 .OfClass(typeof(DimensionType))
@@ -288,36 +311,151 @@ namespace MyInstrumentsForRevit.Commands
                 return;
             }
 
-            CreateDimension(document, view, dimensionType, verticalGrids.OrderBy(grid => GetGridU(view, grid)).ToList(), ToModelPoint(view, bounds.MinU, bounds.MinV - DimensionOffset), ToModelPoint(view, bounds.MaxU, bounds.MinV - DimensionOffset));
-            CreateDimension(document, view, dimensionType, horizontalGrids.OrderBy(grid => GetGridV(view, grid)).ToList(), ToModelPoint(view, bounds.MinU - DimensionOffset, bounds.MinV), ToModelPoint(view, bounds.MinU - DimensionOffset, bounds.MaxV));
+            List<GridCoordinate> vertical = verticalGrids
+                .Select(grid => TryGetGridCoordinate(view, grid, GridDirection.Vertical))
+                .Where(item => item != null && item.Coordinate >= bounds.MinU - BoundsTolerance && item.Coordinate <= bounds.MaxU + BoundsTolerance)
+                .Cast<GridCoordinate>()
+                .OrderBy(item => item.Coordinate)
+                .ToList();
+
+            List<GridCoordinate> horizontal = horizontalGrids
+                .Select(grid => TryGetGridCoordinate(view, grid, GridDirection.Horizontal))
+                .Where(item => item != null && item.Coordinate >= bounds.MinV - BoundsTolerance && item.Coordinate <= bounds.MaxV + BoundsTolerance)
+                .Cast<GridCoordinate>()
+                .OrderBy(item => item.Coordinate)
+                .ToList();
+
+            CreateDimensionChain(
+                document,
+                view,
+                dimensionType,
+                vertical.Select(item => item.Grid).ToList(),
+                ToModelPoint(view, bounds.MinU, bounds.MinV - FirstDimensionOffset),
+                ToModelPoint(view, bounds.MaxU, bounds.MinV - FirstDimensionOffset));
+
+            CreateOverallDimension(
+                document,
+                view,
+                dimensionType,
+                vertical.Select(item => item.Grid).ToList(),
+                ToModelPoint(view, bounds.MinU, bounds.MinV - OverallDimensionOffset),
+                ToModelPoint(view, bounds.MaxU, bounds.MinV - OverallDimensionOffset));
+
+            CreateDimensionChain(
+                document,
+                view,
+                dimensionType,
+                horizontal.Select(item => item.Grid).ToList(),
+                ToModelPoint(view, bounds.MinU - FirstDimensionOffset, bounds.MinV),
+                ToModelPoint(view, bounds.MinU - FirstDimensionOffset, bounds.MaxV));
+
+            CreateOverallDimension(
+                document,
+                view,
+                dimensionType,
+                horizontal.Select(item => item.Grid).ToList(),
+                ToModelPoint(view, bounds.MinU - OverallDimensionOffset, bounds.MinV),
+                ToModelPoint(view, bounds.MinU - OverallDimensionOffset, bounds.MaxV));
         }
 
-        private static void CreateDimension(Document document, View view, DimensionType dimensionType, IList<Grid> grids, XYZ start, XYZ end)
+        private static void CreateDimensionChain(
+            Document document,
+            View view,
+            DimensionType dimensionType,
+            IList<Grid> grids,
+            XYZ start,
+            XYZ end)
         {
             if (grids.Count < 2)
             {
                 return;
             }
 
-            var references = new ReferenceArray();
-            foreach (Grid grid in grids)
+            TryCreateDimension(document, view, dimensionType, grids, start, end);
+        }
+
+        private static void CreateOverallDimension(
+            Document document,
+            View view,
+            DimensionType dimensionType,
+            IList<Grid> grids,
+            XYZ start,
+            XYZ end)
+        {
+            if (grids.Count < 2)
             {
-                references.Append(new Reference(grid));
+                return;
             }
 
-            document.Create.NewDimension(view, Line.CreateBound(start, end), references, dimensionType);
+            TryCreateDimension(document, view, dimensionType, new[] { grids.First(), grids.Last() }, start, end);
         }
 
-        private static double GetGridU(View view, Grid grid)
+        private static void TryCreateDimension(
+            Document document,
+            View view,
+            DimensionType dimensionType,
+            IEnumerable<Grid> grids,
+            XYZ start,
+            XYZ end)
         {
-            Curve curve = grid.GetCurvesInView(DatumExtentType.ViewSpecific, view).First();
-            return (ToViewPoint(view, curve.GetEndPoint(0)).U + ToViewPoint(view, curve.GetEndPoint(1)).U) * 0.5;
+            try
+            {
+                var references = new ReferenceArray();
+                foreach (Grid grid in grids)
+                {
+                    references.Append(new Reference(grid));
+                }
+
+                document.Create.NewDimension(view, Line.CreateBound(start, end), references, dimensionType);
+            }
+            catch (Autodesk.Revit.Exceptions.ArgumentException)
+            {
+            }
+            catch (Autodesk.Revit.Exceptions.InvalidOperationException)
+            {
+            }
         }
 
-        private static double GetGridV(View view, Grid grid)
+        private static GridCoordinate? TryGetGridCoordinate(View view, Grid grid, GridDirection direction)
         {
-            Curve curve = grid.GetCurvesInView(DatumExtentType.ViewSpecific, view).First();
-            return (ToViewPoint(view, curve.GetEndPoint(0)).V + ToViewPoint(view, curve.GetEndPoint(1)).V) * 0.5;
+            try
+            {
+                Curve curve = grid.GetCurvesInView(DatumExtentType.ViewSpecific, view).FirstOrDefault();
+                if (curve == null)
+                {
+                    return null;
+                }
+
+                UVPoint start = ToViewPoint(view, curve.GetEndPoint(0));
+                UVPoint end = ToViewPoint(view, curve.GetEndPoint(1));
+                double coordinate = direction == GridDirection.Vertical
+                    ? (start.U + end.U) * 0.5
+                    : (start.V + end.V) * 0.5;
+
+                return new GridCoordinate(grid, coordinate);
+            }
+            catch (Autodesk.Revit.Exceptions.ArgumentException)
+            {
+                return null;
+            }
+            catch (Autodesk.Revit.Exceptions.InvalidOperationException)
+            {
+                return null;
+            }
+        }
+
+        private static XYZ PointOnLineAtViewU(Line line, double startU, double directionU, double targetU)
+        {
+            double parameter = (targetU - startU) / directionU;
+            XYZ direction = (line.GetEndPoint(1) - line.GetEndPoint(0)).Normalize();
+            return line.GetEndPoint(0) + direction.Multiply(parameter);
+        }
+
+        private static XYZ PointOnLineAtViewV(Line line, double startV, double directionV, double targetV)
+        {
+            double parameter = (targetV - startV) / directionV;
+            XYZ direction = (line.GetEndPoint(1) - line.GetEndPoint(0)).Normalize();
+            return line.GetEndPoint(0) + direction.Multiply(parameter);
         }
 
         private static void SetCrop(View view, ViewBounds bounds)
@@ -367,19 +505,28 @@ namespace MyInstrumentsForRevit.Commands
             }
         }
 
-        private static void CreateHiddenGridFilter(Document document, View view, IList<ElementId> hiddenGridIds, string? suffix)
+        private static void TryCreateHiddenGridFilter(Document document, View view, IList<ElementId> hiddenGridIds, string? suffix)
         {
             if (hiddenGridIds.Count == 0)
             {
                 return;
             }
 
-            string mode = suffix == null ? "без суффикса" : "суффикс " + suffix.TrimStart('/');
-            string name = $"{FilterPrefix} {mode} - {SafeName(view.Name)}";
-            SelectionFilterElement filter = SelectionFilterElement.Create(document, name);
-            filter.SetElementIds(hiddenGridIds);
-            view.AddFilter(filter.Id);
-            view.SetFilterVisibility(filter.Id, false);
+            try
+            {
+                string mode = suffix == null ? "без суффикса" : "суффикс " + suffix.TrimStart('/');
+                string name = $"{FilterPrefix} {mode} - {SafeName(view.Name)}";
+                SelectionFilterElement filter = SelectionFilterElement.Create(document, name);
+                filter.SetElementIds(hiddenGridIds);
+                view.AddFilter(filter.Id);
+                view.SetFilterVisibility(filter.Id, false);
+            }
+            catch (Autodesk.Revit.Exceptions.ArgumentException)
+            {
+            }
+            catch (Autodesk.Revit.Exceptions.InvalidOperationException)
+            {
+            }
         }
 
         private static string? NormalizeSuffix(string input)
@@ -424,6 +571,9 @@ namespace MyInstrumentsForRevit.Commands
             catch (Autodesk.Revit.Exceptions.ArgumentException)
             {
             }
+            catch (Autodesk.Revit.Exceptions.InvalidOperationException)
+            {
+            }
         }
 
         private static void ShowBubble(Grid grid, View view, DatumEnds end)
@@ -433,6 +583,9 @@ namespace MyInstrumentsForRevit.Commands
                 grid.ShowBubbleInView(end, view);
             }
             catch (Autodesk.Revit.Exceptions.ArgumentException)
+            {
+            }
+            catch (Autodesk.Revit.Exceptions.InvalidOperationException)
             {
             }
         }
@@ -497,6 +650,19 @@ namespace MyInstrumentsForRevit.Commands
             public double U { get; }
 
             public double V { get; }
+        }
+
+        private sealed class GridCoordinate
+        {
+            public GridCoordinate(Grid grid, double coordinate)
+            {
+                Grid = grid;
+                Coordinate = coordinate;
+            }
+
+            public Grid Grid { get; }
+
+            public double Coordinate { get; }
         }
 
         private enum GridDirection

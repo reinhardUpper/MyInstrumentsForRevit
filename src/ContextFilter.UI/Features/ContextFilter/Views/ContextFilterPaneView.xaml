@@ -1,4 +1,5 @@
 <UserControl x:Class="ContextFilter.UI.Views.ContextFilterPaneView"
+             x:Name="Root"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="clr-namespace:ContextFilter.UI.ViewModels"
@@ -169,7 +170,7 @@
         <Grid>
             <Grid.RowDefinitions>
                 <RowDefinition Height="*" />
-                <RowDefinition Height="132" />
+                <RowDefinition Height="220" />
             </Grid.RowDefinitions>
 
             <TreeView ItemsSource="{Binding FilteredRoots}"
@@ -231,7 +232,8 @@
                     Padding="8"
                     BorderThickness="0,1,0,0"
                     BorderBrush="{StaticResource BorderBrush}"
-                    Background="{StaticResource PanelBrush}">
+                    Background="{StaticResource PanelBrush}"
+                    Visibility="{Binding IsTreeVisible, Converter={StaticResource BooleanToVisibilityConverter}}">
                 <DockPanel LastChildFill="True">
                     <ToolBar DockPanel.Dock="Top"
                              Margin="0,0,0,6"
@@ -293,6 +295,59 @@
                                                    FontSize="11" />
                                     </Border>
                                 </Grid>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </DockPanel>
+            </Border>
+
+            <Border Grid.Row="1"
+                    Padding="8"
+                    BorderThickness="0,1,0,0"
+                    BorderBrush="{StaticResource BorderBrush}"
+                    Background="{StaticResource PanelBrush}"
+                    Visibility="{Binding IsParameterSearchActive, Converter={StaticResource BooleanToVisibilityConverter}}">
+                <DockPanel LastChildFill="True">
+                    <TextBlock DockPanel.Dock="Top"
+                               Text="{Binding SelectedParameter.Name}"
+                               Margin="0,0,0,6"
+                               Foreground="{StaticResource TextMutedBrush}"
+                               FontWeight="SemiBold"
+                               TextTrimming="CharacterEllipsis" />
+
+                    <ListBox ItemsSource="{Binding SelectedParameterValues}"
+                             Background="{StaticResource PanelBrush}"
+                             BorderThickness="0"
+                             Foreground="{StaticResource TextPrimaryBrush}"
+                             VirtualizingStackPanel.IsVirtualizing="True"
+                             VirtualizingStackPanel.VirtualizationMode="Recycling"
+                             ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <Button Command="{Binding DataContext.SelectParameterValueCommand, ElementName=Root}"
+                                        CommandParameter="{Binding}"
+                                        Style="{StaticResource NodeButtonStyle}">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="{Binding Value}"
+                                                   Foreground="{StaticResource TextPrimaryBrush}"
+                                                   TextTrimming="CharacterEllipsis" />
+                                        <Border Grid.Column="1"
+                                                MinWidth="28"
+                                                Margin="8,0,0,0"
+                                                Padding="6,1"
+                                                CornerRadius="8"
+                                                Background="{StaticResource CounterBackgroundBrush}">
+                                            <TextBlock Text="{Binding Count}"
+                                                       HorizontalAlignment="Center"
+                                                       Foreground="{StaticResource TextMutedBrush}"
+                                                       FontSize="11" />
+                                        </Border>
+                                    </Grid>
+                                </Button>
                             </DataTemplate>
                         </ListBox.ItemTemplate>
                     </ListBox>

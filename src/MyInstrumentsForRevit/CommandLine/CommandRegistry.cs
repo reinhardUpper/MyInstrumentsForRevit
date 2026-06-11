@@ -27,6 +27,7 @@ namespace MyInstrumentsForRevit.CommandLine
             Register("help", "Список команд", "Показать список доступных команд.", ShowHelp);
             Register("filters.refresh", "Обновить фильтры", "Обновить кэш фильтров проекта.", RefreshFilters);
             Register("filters.add", "Добавить фильтр на вид", "Открыть поиск фильтра и добавить/переключить его на активном виде.", AddViewFilter);
+            Register("filters.by_parameter", "Фильтр по параметру", "Создать фильтр по параметру выбранного элемента.", CreateFilterFromElementParameter);
 
             Register("graphics.hatches", "Штриховка категорий", "Скрыть или вернуть штриховку основных конструктивных категорий.", ToggleStructuralHatches);
             Register("graphics.rebar_view", "Вид армирования", "Настроить активный вид под армирование.", ConfigureRebarView);
@@ -34,7 +35,7 @@ namespace MyInstrumentsForRevit.CommandLine
             Register("graphics.revit_links", "Revit связи", "Скрыть или вернуть Revit-связи на активном виде.", ToggleRevitLinks);
             Register("rebar.toggle", "Вкл/выкл арматуру", "Включить или выключить категорию несущей арматуры на активном виде.", ToggleRebar);
             Register("view.3d", "Настроить 3D вид", "Применить стандартную настройку активного 3D вида.", Configure3DView);
-            Register("view.grids", "Оси вида", "Подрезать оси на текущем виде и поставить размеры.", ArrangeGridsOnCurrentView);
+            Register("view.grids", "Оси вида", "Подрезать оси на текущем виде и скрыть лишние.", ArrangeGridsOnCurrentView);
             Register("sheet.duplicate", "Дубль листа", "Дублировать активный лист.", DuplicateActiveSheet);
 
             Register("quick.manager", "Менеджер размеров", "Открыть менеджер быстрых пресетов БК1-БК4.", OpenQuickCommandManager);
@@ -185,6 +186,11 @@ namespace MyInstrumentsForRevit.CommandLine
                 return;
             }
 
+        }
+
+        private static void CreateFilterFromElementParameter(UIApplication uiApplication)
+        {
+            CreateFilterFromElementParameterCommand.ExecuteFromCommandLine(uiApplication);
         }
 
         private static bool ApplyCommandLineFilterVisibility(Document document, View view, FilterItem selectedFilter, bool makeVisible)
