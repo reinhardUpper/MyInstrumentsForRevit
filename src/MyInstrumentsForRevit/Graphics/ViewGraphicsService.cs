@@ -1,5 +1,7 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using Autodesk.Revit.DB;
 
 namespace MyInstrumentsForRevit.Graphics
@@ -43,6 +45,60 @@ namespace MyInstrumentsForRevit.Graphics
             HideImportSubcategories(document, view);
             HideElementsOfClass<RevitLinkInstance>(document, view);
             HideElementsOfClass<ImportInstance>(document, view);
+        }
+
+        public static bool SetDisplayStyleIfPossible(View view, DisplayStyle displayStyle)
+        {
+            try
+            {
+                if (!view.CanModifyDisplayStyle())
+                {
+                    return false;
+                }
+
+                view.DisplayStyle = displayStyle;
+                return true;
+            }
+            catch (Autodesk.Revit.Exceptions.InvalidOperationException)
+            {
+                return false;
+            }
+        }
+
+        public static void SetViewModelTransparency(View view, int transparency)
+        {
+            // Reflection keeps the command loadable in older Revit versions if this graphics API changes.
+            try
+            {
+                MethodInfo getViewDisplayModel = view.GetType().GetMethod("GetViewDisplayModel", Type.EmptyTypes);
+                if (getViewDisplayModel == null)
+                {
+                    return;
+                }
+
+                object viewDisplayModel = getViewDisplayModel.Invoke(view, null);
+                if (viewDisplayModel == null)
+                {
+                    return;
+                }
+
+                PropertyInfo transparencyProperty = viewDisplayModel.GetType().GetProperty("Transparency");
+                if (transparencyProperty == null || !transparencyProperty.CanWrite)
+                {
+                    return;
+                }
+
+                transparencyProperty.SetValue(viewDisplayModel, transparency, null);
+
+                MethodInfo setViewDisplayModel = view.GetType().GetMethod("SetViewDisplayModel", new[] { viewDisplayModel.GetType() });
+                setViewDisplayModel?.Invoke(view, new[] { viewDisplayModel });
+            }
+            catch (TargetInvocationException)
+            {
+            }
+            catch (Autodesk.Revit.Exceptions.InvalidOperationException)
+            {
+            }
         }
 
         public static void SetCategoriesHidden(

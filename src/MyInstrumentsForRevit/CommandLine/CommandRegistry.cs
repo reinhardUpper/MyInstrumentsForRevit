@@ -44,6 +44,8 @@ namespace MyInstrumentsForRevit.CommandLine
             Register("quick.bk3", "БК3", "Запустить быстрый пресет БК3.", uiApplication => ExecuteQuickSlot(uiApplication, 3));
             Register("quick.bk4", "БК4", "Запустить быстрый пресет БК4.", uiApplication => ExecuteQuickSlot(uiApplication, 4));
 
+            Register("links.show_by_id", "Элемент связи по ID", "Выбрать Revit-связь, ввести ElementId элемента в связи и показать его через Section Box.", ShowLinkedElementById);
+
             RegisterRevitPostableCommands();
         }
 
@@ -304,6 +306,11 @@ namespace MyInstrumentsForRevit.CommandLine
             }
         }
 
+        private static void ShowLinkedElementById(UIApplication uiApplication)
+        {
+            ShowLinkedElementByIdCommand.ExecuteFromCommandLine(uiApplication);
+        }
+
         private static void ToggleRebar(UIApplication uiApplication)
         {
             Document document = GetDocument(uiApplication);
@@ -343,14 +350,15 @@ namespace MyInstrumentsForRevit.CommandLine
             using (var transaction = new Transaction(document, "Command line: configure 3D view"))
             {
                 transaction.Start();
-                view3D.DisplayStyle = DisplayStyle.Shading;
-                ViewGraphicsService.SetCategoriesHidden(document, view3D, new[]
+                View targetView = ViewGraphicsService.GetGraphicsTargetView(document, view3D);
+                ViewGraphicsService.SetDisplayStyleIfPossible(targetView, DisplayStyle.Shading);
+                ViewGraphicsService.SetCategoriesHidden(document, targetView, new[]
                 {
                     BuiltInCategory.OST_VolumeOfInterest,
                     BuiltInCategory.OST_Levels,
                     BuiltInCategory.OST_Grids
                 }, true);
-                SetModelCategoriesTransparency(document, view3D, 20);
+                ViewGraphicsService.SetViewModelTransparency(targetView, 20);
                 transaction.Commit();
             }
         }
@@ -383,26 +391,6 @@ namespace MyInstrumentsForRevit.CommandLine
         {
             Document document = GetDocument(uiApplication);
             DuplicateActiveSheetCommand.Duplicate(document);
-        }
-
-        private static void SetModelCategoriesTransparency(Document document, View view, int transparency)
-        {
-            foreach (Category category in document.Settings.Categories)
-            {
-                if (category == null || category.CategoryType != CategoryType.Model)
-                {
-                    continue;
-                }
-
-                if (!category.get_AllowsVisibilityControl(view))
-                {
-                    continue;
-                }
-
-                OverrideGraphicSettings settings = view.GetCategoryOverrides(category.Id);
-                settings.SetSurfaceTransparency(transparency);
-                view.SetCategoryOverrides(category.Id, settings);
-            }
         }
 
         private static string BuildViewKey(Document document, View view)

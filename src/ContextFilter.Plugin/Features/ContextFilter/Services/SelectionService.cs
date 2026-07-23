@@ -150,7 +150,7 @@ public sealed class SelectionService
             FilterNodeKind.Category,
             materialized.Count,
             materialized.Select(item => item.ElementId).ToList(),
-            BuildGroupSearchText(materialized),
+            name,
             BuildParameters(materialized),
             children);
     }
@@ -196,9 +196,10 @@ public sealed class SelectionService
         var familyName = GetFamilyName(element, type);
         var typeName = type?.Name ?? element.Name ?? $"Element {element.Id.IntegerValue}";
         var parameters = BuildParameterValues(element, type);
+        var classSearchText = BuildClassSearchText(element);
         var parameterText = string.Join(" ", parameters.Select(parameter => $"{parameter.Name}: {parameter.Value}"));
 
-        return new SelectionItem(element.Id.IntegerValue, categoryName, familyName, typeName, parameterText, parameters);
+        return new SelectionItem(element.Id.IntegerValue, categoryName, familyName, typeName, classSearchText, parameterText, parameters);
     }
 
     private static ElementType? GetElementType(Document document, Element element)
@@ -220,6 +221,88 @@ public sealed class SelectionService
         }
 
         return type?.FamilyName ?? element.Category?.Name ?? "<No family>";
+    }
+
+    private static string BuildClassSearchText(Element element)
+    {
+        var aliases = new List<string>
+        {
+            element.GetType().Name,
+            element.Category?.Name ?? string.Empty
+        };
+
+        if (element is FamilyInstance)
+        {
+            aliases.Add("family instance");
+            aliases.Add("экземпляр семейства");
+        }
+
+        if (element is Rebar)
+        {
+            aliases.Add("rebar");
+            aliases.Add("reinforcement");
+            aliases.Add("арматура");
+            aliases.Add("несущая арматура");
+        }
+
+        int categoryId = element.Category?.Id.IntegerValue ?? 0;
+        switch ((BuiltInCategory)categoryId)
+        {
+            case BuiltInCategory.OST_Walls:
+                aliases.Add("wall");
+                aliases.Add("walls");
+                aliases.Add("стена");
+                aliases.Add("стены");
+                break;
+            case BuiltInCategory.OST_Floors:
+                aliases.Add("floor");
+                aliases.Add("floors");
+                aliases.Add("slab");
+                aliases.Add("перекрытие");
+                aliases.Add("перекрытия");
+                break;
+            case BuiltInCategory.OST_StructuralFoundation:
+                aliases.Add("foundation");
+                aliases.Add("foundations");
+                aliases.Add("фундамент");
+                aliases.Add("фундаменты");
+                break;
+            case BuiltInCategory.OST_GenericModel:
+                aliases.Add("generic model");
+                aliases.Add("generic models");
+                aliases.Add("обобщенная модель");
+                aliases.Add("обобщенные модели");
+                break;
+            case BuiltInCategory.OST_Doors:
+                aliases.Add("door");
+                aliases.Add("doors");
+                aliases.Add("дверь");
+                aliases.Add("двери");
+                break;
+            case BuiltInCategory.OST_Windows:
+                aliases.Add("window");
+                aliases.Add("windows");
+                aliases.Add("окно");
+                aliases.Add("окна");
+                break;
+            case BuiltInCategory.OST_Columns:
+            case BuiltInCategory.OST_StructuralColumns:
+                aliases.Add("column");
+                aliases.Add("columns");
+                aliases.Add("колонна");
+                aliases.Add("колонны");
+                break;
+            case BuiltInCategory.OST_StructuralFraming:
+                aliases.Add("framing");
+                aliases.Add("beam");
+                aliases.Add("beams");
+                aliases.Add("каркас");
+                aliases.Add("балка");
+                aliases.Add("балки");
+                break;
+        }
+
+        return string.Join(" ", aliases.Where(alias => !string.IsNullOrWhiteSpace(alias)));
     }
 
     private static bool CanSelectInView(View view, Element element)
@@ -266,7 +349,7 @@ public sealed class SelectionService
     {
         return string.Join(
             " ",
-            items.Select(item => $"{item.CategoryName} {item.FamilyName} {item.TypeName}"));
+            items.Select(item => $"{item.CategoryName} {item.FamilyName} {item.TypeName} {item.ClassSearchText}"));
     }
 
     private static IReadOnlyList<FilterParameter> BuildParameters(IEnumerable<SelectionItem> items)
@@ -367,6 +450,7 @@ public sealed class SelectionService
             string categoryName,
             string familyName,
             string typeName,
+            string classSearchText,
             string parameterText,
             IReadOnlyList<ParameterValue> parameters)
         {
@@ -374,6 +458,7 @@ public sealed class SelectionService
             CategoryName = categoryName;
             FamilyName = familyName;
             TypeName = typeName;
+            ClassSearchText = classSearchText;
             ParameterText = parameterText;
             Parameters = parameters;
         }
@@ -385,6 +470,8 @@ public sealed class SelectionService
         public string FamilyName { get; }
 
         public string TypeName { get; }
+
+        public string ClassSearchText { get; }
 
         public string ParameterText { get; }
 

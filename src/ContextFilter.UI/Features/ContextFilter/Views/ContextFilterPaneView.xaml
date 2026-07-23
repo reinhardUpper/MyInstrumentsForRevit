@@ -136,7 +136,7 @@
                         <TextBox Grid.Column="1"
                                  Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
                                  Style="{StaticResource SearchBoxStyle}"
-                                 ToolTip="Category, family, type, or element parameter text" />
+                                 ToolTip="Category name" />
                     </Grid>
 
                     <Grid Margin="0,6,0,0">

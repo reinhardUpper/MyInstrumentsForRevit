@@ -4,6 +4,7 @@ using System.Linq;
 using Autodesk.Revit.Attributes;
 using Autodesk.Revit.DB;
 using Autodesk.Revit.UI;
+using MyInstrumentsForRevit.RevitCompatibility;
 
 namespace MyInstrumentsForRevit.Commands
 {
@@ -39,8 +40,8 @@ namespace MyInstrumentsForRevit.Commands
             }
 
             XYZ basePoint = GetSheetCenter(activeSheet);
-            double offsetX = UnitUtils.ConvertToInternalUnits(OffsetXMillimeters, UnitTypeId.Millimeters);
-            double offsetY = UnitUtils.ConvertToInternalUnits(OffsetYMillimeters, UnitTypeId.Millimeters);
+            double offsetX = UnitConversion.MillimetersToInternalUnits(OffsetXMillimeters);
+            double offsetY = UnitConversion.MillimetersToInternalUnits(OffsetYMillimeters);
             int createdCount = 0;
             var errors = new List<string>();
 
@@ -139,7 +140,8 @@ namespace MyInstrumentsForRevit.Commands
                 || viewType == ViewType.EngineeringPlan
                 || viewType == ViewType.Detail
                 || viewType == ViewType.Section
-                || viewType == ViewType.DraftingView;
+                || viewType == ViewType.DraftingView
+                || viewType == ViewType.Legend;
         }
     }
 }

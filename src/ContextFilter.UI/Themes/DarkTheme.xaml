@@ -178,6 +178,6 @@
     <Style TargetType="{x:Type TreeViewItem}">
         <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
         <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-        <Setter Property="IsExpanded" Value="True" />
+        <Setter Property="IsExpanded" Value="False" />
     </Style>
 </ResourceDictionary>

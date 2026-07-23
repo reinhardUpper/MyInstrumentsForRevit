@@ -67,6 +67,19 @@ public sealed partial class FilterNodeViewModel : ObservableObject
             return new FilterNodeViewModel(_model);
         }
 
+        if (!string.IsNullOrWhiteSpace(query))
+        {
+            if (Kind != FilterNodeKind.Category)
+            {
+                return null;
+            }
+
+            return Name.IndexOf(query, StringComparison.CurrentCultureIgnoreCase) >= 0
+                || SearchText.IndexOf(query, StringComparison.CurrentCultureIgnoreCase) >= 0
+                    ? new FilterNodeViewModel(_model)
+                    : null;
+        }
+
         var matchingChildren = Children
             .Select(child => child.Filter(query, parameterQuery))
             .Where(child => child is not null)
@@ -74,14 +87,16 @@ public sealed partial class FilterNodeViewModel : ObservableObject
             .ToList();
 
         var isParameterNode = Kind == FilterNodeKind.Parameter || Kind == FilterNodeKind.ParameterValue;
-        var nameMatches = string.IsNullOrWhiteSpace(query)
-            || Name.IndexOf(query, StringComparison.CurrentCultureIgnoreCase) >= 0
-            || SearchText.IndexOf(query, StringComparison.CurrentCultureIgnoreCase) >= 0;
+        var hasElementQuery = !string.IsNullOrWhiteSpace(query);
+        var directNameMatches = !hasElementQuery
+            || Name.IndexOf(query, StringComparison.CurrentCultureIgnoreCase) >= 0;
+        var aggregateTextMatches = hasElementQuery
+            && SearchText.IndexOf(query, StringComparison.CurrentCultureIgnoreCase) >= 0;
         var parameterMatches = string.IsNullOrWhiteSpace(parameterQuery)
             || (isParameterNode
                 && (Name.IndexOf(parameterQuery, StringComparison.CurrentCultureIgnoreCase) >= 0
                     || SearchText.IndexOf(parameterQuery, StringComparison.CurrentCultureIgnoreCase) >= 0));
-        var ownMatch = isParameterNode ? parameterMatches : nameMatches;
+        var ownMatch = isParameterNode ? parameterMatches : directNameMatches || aggregateTextMatches;
 
         if (!ownMatch && matchingChildren.Count == 0)
         {
@@ -89,7 +104,9 @@ public sealed partial class FilterNodeViewModel : ObservableObject
         }
 
         var copy = new FilterNodeViewModel(_model);
-        if (!ownMatch || !string.IsNullOrWhiteSpace(parameterQuery))
+        bool shouldPruneChildren = matchingChildren.Count > 0
+            && (!directNameMatches || !string.IsNullOrWhiteSpace(parameterQuery));
+        if (!ownMatch || shouldPruneChildren)
         {
             copy.Children.Clear();
             foreach (var child in matchingChildren)

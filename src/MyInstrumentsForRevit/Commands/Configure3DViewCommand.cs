@@ -1,6 +1,7 @@
 using Autodesk.Revit.Attributes;
 using Autodesk.Revit.DB;
 using Autodesk.Revit.UI;
+using MyInstrumentsForRevit.Graphics;
 
 namespace MyInstrumentsForRevit.Commands
 {
@@ -22,12 +23,13 @@ namespace MyInstrumentsForRevit.Commands
             {
                 transaction.Start();
 
-                view3D.DisplayStyle = DisplayStyle.Shading;
+                View targetView = ViewGraphicsService.GetGraphicsTargetView(document, view3D);
+                ViewGraphicsService.SetDisplayStyleIfPossible(targetView, DisplayStyle.Shading);
 
-                HideCategoryIfPossible(document, view3D, BuiltInCategory.OST_VolumeOfInterest);
-                HideCategoryIfPossible(document, view3D, BuiltInCategory.OST_Levels);
-                HideCategoryIfPossible(document, view3D, BuiltInCategory.OST_Grids);
-                SetModelCategoriesTransparency(document, view3D, 20);
+                HideCategoryIfPossible(document, targetView, BuiltInCategory.OST_VolumeOfInterest);
+                HideCategoryIfPossible(document, targetView, BuiltInCategory.OST_Levels);
+                HideCategoryIfPossible(document, targetView, BuiltInCategory.OST_Grids);
+                ViewGraphicsService.SetViewModelTransparency(targetView, 20);
 
                 transaction.Commit();
             }
@@ -50,24 +52,5 @@ namespace MyInstrumentsForRevit.Commands
             }
         }
 
-        private static void SetModelCategoriesTransparency(Document document, View view, int transparency)
-        {
-            foreach (Category category in document.Settings.Categories)
-            {
-                if (category == null || category.CategoryType != CategoryType.Model)
-                {
-                    continue;
-                }
-
-                if (!category.get_AllowsVisibilityControl(view))
-                {
-                    continue;
-                }
-
-                OverrideGraphicSettings settings = view.GetCategoryOverrides(category.Id);
-                settings.SetSurfaceTransparency(transparency);
-                view.SetCategoryOverrides(category.Id, settings);
-            }
-        }
     }
 }

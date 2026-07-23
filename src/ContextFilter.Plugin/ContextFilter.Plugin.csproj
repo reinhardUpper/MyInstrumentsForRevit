@@ -18,7 +18,7 @@
     <ProjectReference Include="..\ContextFilter.UI\ContextFilter.UI.csproj" />
   </ItemGroup>
 
-  <ItemGroup>
+  <ItemGroup Condition="'$(RevitVersion)' != '2019'">
     <Reference Include="RevitAPI">
       <HintPath>$(RevitInstallDir)RevitAPI.dll</HintPath>
       <Private>false</Private>
@@ -27,5 +27,10 @@
       <HintPath>$(RevitInstallDir)RevitAPIUI.dll</HintPath>
       <Private>false</Private>
     </Reference>
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(RevitVersion)' == '2019'">
+    <PackageReference Include="Nice3point.Revit.Api.RevitAPI" Version="2019.2.11" PrivateAssets="all" />
+    <PackageReference Include="Nice3point.Revit.Api.RevitAPIUI" Version="2019.2.11" PrivateAssets="all" />
   </ItemGroup>
 </Project>

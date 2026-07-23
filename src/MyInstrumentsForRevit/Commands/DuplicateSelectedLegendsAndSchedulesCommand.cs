@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using Autodesk.Revit.Attributes;
 using Autodesk.Revit.DB;
 using Autodesk.Revit.UI;
+using MyInstrumentsForRevit.RevitCompatibility;
 
 namespace MyInstrumentsForRevit.Commands
 {
@@ -23,7 +24,7 @@ namespace MyInstrumentsForRevit.Commands
                 return Result.Cancelled;
             }
 
-            double offsetFeet = UnitUtils.ConvertToInternalUnits(OffsetMillimeters, UnitTypeId.Millimeters);
+            double offsetFeet = UnitConversion.MillimetersToInternalUnits(OffsetMillimeters);
             int createdCount = 0;
             var errors = new List<string>();
 
