@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using Autodesk.Revit.Attributes;
@@ -53,18 +53,18 @@ namespace MyInstrumentsForRevit.Commands
                 return;
             }
 
-            Reference reference = uiDocument.Selection.PickObject(ObjectType.Element, "Выберите элемент для фильтра по параметру");
-            Element element = document.GetElement(reference.ElementId);
-            if (element?.Category == null)
+            IReadOnlyList<Element> sourceElements = GetSourceElements(uiDocument);
+            if (sourceElements.Count == 0)
             {
-                TaskDialog.Show("Фильтр по параметру", "У выбранного элемента нет категории.");
+                TaskDialog.Show("Фильтр по параметру", "У выбранных элементов нет категорий.");
                 return;
             }
 
-            IReadOnlyList<ElementParameterFilterCandidate> parameters = GetFilterableParameters(document, element);
+            List<ElementId> categoryIds = GetCategoryIds(sourceElements);
+            IReadOnlyList<ElementParameterFilterCandidate> parameters = GetFilterableParameters(document, sourceElements, categoryIds);
             if (parameters.Count == 0)
             {
-                TaskDialog.Show("Фильтр по параметру", "У элемента не найдено параметров со значениями для фильтра.");
+                TaskDialog.Show("Фильтр по параметру", "У выбранных элементов не найдено общих параметров со значениями для фильтра.");
                 return;
             }
 
@@ -77,21 +77,57 @@ namespace MyInstrumentsForRevit.Commands
             using (var transaction = new Transaction(document, "Create view filter from element parameter"))
             {
                 transaction.Start();
-                ParameterFilterElement filter = CreateFilter(document, element, window.SelectedParameter, window.IsolateSimilar);
+                ParameterFilterElement filter = CreateFilter(document, sourceElements[0], categoryIds, window.SelectedParameter, window.IsolateSimilar);
                 ViewFilterApplicator.ApplyVisibility(view, filter.Id, false);
                 transaction.Commit();
             }
         }
 
-        private static IReadOnlyList<ElementParameterFilterCandidate> GetFilterableParameters(Document document, Element element)
+        private static IReadOnlyList<Element> GetSourceElements(UIDocument uiDocument)
         {
-            var categories = new List<ElementId> { element.Category.Id };
+            Document document = uiDocument.Document;
+            List<Element> selectedElements = uiDocument.Selection.GetElementIds()
+                .Select(id => document.GetElement(id))
+                .Where(element => element?.Category != null)
+                .Cast<Element>()
+                .ToList();
+
+            if (selectedElements.Count > 1)
+            {
+                return selectedElements;
+            }
+
+            Reference reference = uiDocument.Selection.PickObject(ObjectType.Element, "Выберите элемент для фильтра по параметру");
+            Element element = document.GetElement(reference.ElementId);
+            return element?.Category == null
+                ? new List<Element>()
+                : new List<Element> { element };
+        }
+
+        private static List<ElementId> GetCategoryIds(IReadOnlyList<Element> elements)
+        {
+            return elements
+                .Where(element => element.Category != null)
+                .Select(element => element.Category.Id)
+                .GroupBy(id => id.IntegerValue)
+                .Select(group => group.First())
+                .ToList();
+        }
+
+        private static IReadOnlyList<ElementParameterFilterCandidate> GetFilterableParameters(
+            Document document,
+            IReadOnlyList<Element> elements,
+            ICollection<ElementId> categories)
+        {
+            Element sourceElement = elements[0];
             HashSet<int> filterableParameterIds = ParameterFilterUtilities
                 .GetFilterableParametersInCommon(document, categories)
                 .Select(id => id.IntegerValue)
                 .ToHashSet();
 
-            return element.Parameters
+            filterableParameterIds.IntersectWith(GetCommonElementParameterIds(elements));
+
+            return sourceElement.Parameters
                 .Cast<Parameter>()
                 .Where(parameter => parameter.Definition != null
                     && parameter.Id != ElementId.InvalidElementId
@@ -103,6 +139,29 @@ namespace MyInstrumentsForRevit.Commands
                 .Select(group => group.First())
                 .OrderBy(parameter => parameter.Name)
                 .ToList();
+        }
+
+        private static HashSet<int> GetCommonElementParameterIds(IReadOnlyList<Element> elements)
+        {
+            HashSet<int> common = GetValuedParameterIds(elements[0]);
+            foreach (Element element in elements.Skip(1))
+            {
+                common.IntersectWith(GetValuedParameterIds(element));
+            }
+
+            return common;
+        }
+
+        private static HashSet<int> GetValuedParameterIds(Element element)
+        {
+            return element.Parameters
+                .Cast<Parameter>()
+                .Where(parameter => parameter.Definition != null
+                    && parameter.Id != ElementId.InvalidElementId
+                    && parameter.StorageType != StorageType.None
+                    && HasValue(parameter))
+                .Select(parameter => parameter.Id.IntegerValue)
+                .ToHashSet();
         }
 
         private static bool HasValue(Parameter parameter)
@@ -123,13 +182,12 @@ namespace MyInstrumentsForRevit.Commands
         private static ParameterFilterElement CreateFilter(
             Document document,
             Element element,
+            ICollection<ElementId> categories,
             ElementParameterFilterCandidate selected,
             bool isolateSimilar)
         {
-            ElementId categoryId = element.Category.Id;
             FilterRule rule = CreateRule(selected.Parameter, isolateSimilar);
-            var categories = new List<ElementId> { categoryId };
-            string filterName = BuildFilterName(document, element, selected, isolateSimilar);
+            string filterName = BuildFilterName(document, element, categories, selected, isolateSimilar);
             ParameterFilterElement filter = ParameterFilterElement.Create(document, filterName, categories);
             filter.SetElementFilter(new ElementParameterFilter(rule));
             return filter;
@@ -177,11 +235,12 @@ namespace MyInstrumentsForRevit.Commands
         private static string BuildFilterName(
             Document document,
             Element element,
+            ICollection<ElementId> categories,
             ElementParameterFilterCandidate selected,
             bool isolateSimilar)
         {
             string mode = isolateSimilar ? "Изолировать" : "Скрыть";
-            string category = element.Category?.Name ?? "Без категории";
+            string category = BuildCategoryName(element, categories);
             string value = string.IsNullOrWhiteSpace(selected.DisplayValue) ? "пусто" : selected.DisplayValue;
             string baseName = SafeFilterName($"{mode}: {category} | {selected.Name} = {value}");
             string name = baseName;
@@ -196,6 +255,16 @@ namespace MyInstrumentsForRevit.Commands
             }
 
             return name;
+        }
+
+        private static string BuildCategoryName(Element element, ICollection<ElementId> categories)
+        {
+            if (categories.Count == 1)
+            {
+                return element.Category?.Name ?? "Без категории";
+            }
+
+            return categories.Count + " категорий";
         }
 
         private static string SafeFilterName(string value)

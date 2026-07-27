@@ -45,6 +45,7 @@ namespace MyInstrumentsForRevit.CommandLine
             Register("quick.bk4", "БК4", "Запустить быстрый пресет БК4.", uiApplication => ExecuteQuickSlot(uiApplication, 4));
 
             Register("links.show_by_id", "Элемент связи по ID", "Выбрать Revit-связь, ввести ElementId элемента в связи и показать его через Section Box.", ShowLinkedElementById);
+            Register("rebar.anchorage", "Анкеровка арматуры", "Открыть таблицу анкеровки и нахлестки арматуры.", uiApplication => ShowRebarAnchorageCommand.ShowWindow());
 
             RegisterRevitPostableCommands();
         }
