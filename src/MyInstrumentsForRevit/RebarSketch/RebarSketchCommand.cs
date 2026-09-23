@@ -378,10 +378,9 @@ namespace MyInstrumentsForRevit.RebarSketch
 
         private static ImageType CreateImageType(Document document, string imagePath)
         {
-            using (var options = new ImageTypeOptions(imagePath, false))
-            {
-                return ImageType.Create(document, options);
-            }
+#pragma warning disable CS0618
+            return ImageType.Create(document, imagePath);
+#pragma warning restore CS0618
         }
 
         private static string CreateOutputDirectory()
