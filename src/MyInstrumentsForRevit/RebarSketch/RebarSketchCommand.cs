@@ -15,7 +15,7 @@ namespace MyInstrumentsForRevit.RebarSketch
     public class RebarSketchCommand : IExternalCommand
     {
         private const string LibraryPath =
-            @"\\picompany.ru\pikp\lib\09\_Программы\BIMTools\KR\SketchDetails\library";
+            @"\\picompany.ru\pikp\lib\09_Программы\BIMTools\KR\SketchDetails\library";
 
         public Result Execute(ExternalCommandData commandData, ref string message, ElementSet elements)
         {

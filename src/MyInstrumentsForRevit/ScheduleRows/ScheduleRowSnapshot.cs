@@ -27,7 +27,12 @@ namespace MyInstrumentsForRevit.ScheduleRows
             var headers = new List<string>();
             for (int column = 0; column < columnCount; column++)
             {
-                string title = header.NumberOfRows > 0 ? schedule.GetCellText(SectionType.Header, header.LastRowNumber, column) : string.Empty;
+                int columnNumber = body.FirstColumnNumber + column;
+                string title = header.NumberOfRows > 0
+                    && columnNumber >= header.FirstColumnNumber
+                    && columnNumber <= header.LastColumnNumber
+                    ? schedule.GetCellText(SectionType.Header, header.LastRowNumber, columnNumber)
+                    : string.Empty;
                 headers.Add(string.IsNullOrWhiteSpace(title) ? "Столбец " + (column + 1) : title);
             }
 
@@ -40,7 +45,7 @@ namespace MyInstrumentsForRevit.ScheduleRows
             for (int rowNumber = body.FirstRowNumber; rowNumber <= body.LastRowNumber; rowNumber++)
             {
                 List<string> cells = Enumerable.Range(0, columnCount)
-                    .Select(column => schedule.GetCellText(SectionType.Body, rowNumber, column) ?? string.Empty).ToList();
+                    .Select(column => schedule.GetCellText(SectionType.Body, rowNumber, body.FirstColumnNumber + column) ?? string.Empty).ToList();
                 if (cells.All(string.IsNullOrWhiteSpace)) continue;
 
                 List<ElementId> matches = elements.Where(element => MatchesRow(element, body, rowNumber, cells))
@@ -55,7 +60,7 @@ namespace MyInstrumentsForRevit.ScheduleRows
             bool hasComparableCell = false;
             for (int column = 0; column < cells.Count; column++)
             {
-                ElementId parameterId = body.GetCellParamId(rowNumber, column);
+                ElementId parameterId = body.GetCellParamId(rowNumber, body.FirstColumnNumber + column);
                 if (parameterId == ElementId.InvalidElementId) continue;
 
                 Parameter? parameter = FindParameter(element, parameterId)
