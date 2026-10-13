@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Data;
+using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using MyInstrumentsForRevit.ScheduleRows;
@@ -9,13 +10,20 @@ namespace MyInstrumentsForRevit.Windows
 {
     public partial class ScheduleRowsWindow : Window
     {
-        private readonly Action<ScheduleRow> _selectElements;
-        internal ScheduleRowsWindow(string scheduleName, IReadOnlyList<string> headers, IReadOnlyList<ScheduleRow> rows, Action<ScheduleRow> selectElements)
+        private readonly Action<IReadOnlyCollection<ScheduleRow>> _requestSelection;
+        private readonly Action _disposeController;
+        internal ScheduleRowsWindow(
+            string scheduleName,
+            IReadOnlyList<string> headers,
+            IReadOnlyList<ScheduleRow> rows,
+            Action<IReadOnlyCollection<ScheduleRow>> requestSelection,
+            Action disposeController)
         {
             InitializeComponent();
-            _selectElements = selectElements;
+            _requestSelection = requestSelection;
+            _disposeController = disposeController;
             Title = "Строки: " + scheduleName;
-            DescriptionTextBlock.Text = "Выберите строку — элементы этой позиции будут выделены в модели.";
+            DescriptionTextBlock.Text = "Выберите одну или несколько строк, затем нажмите «Выбрать в модели».";
             var table = new DataTable();
             table.Columns.Add("_row", typeof(ScheduleRow));
             foreach (string header in headers)
@@ -38,13 +46,26 @@ namespace MyInstrumentsForRevit.Windows
         {
             if (e.PropertyName == "_row") e.Cancel = true;
         }
-        private void OnRowSelectionChanged(object sender, SelectionChangedEventArgs e)
+        public void SetStatus(string status)
         {
-            DataRowView? rowView = RowsGrid.SelectedItem as DataRowView;
-            ScheduleRow? row = rowView?["_row"] as ScheduleRow;
-            if (row == null) return;
-            _selectElements(row);
-            StatusTextBlock.Text = row.ElementIds.Count > 0 ? "Выделено элементов: " + row.ElementIds.Count : "Не удалось сопоставить эту строку с элементами модели.";
+            StatusTextBlock.Text = status;
+        }
+        private void OnSelectInModelClick(object sender, RoutedEventArgs e)
+        {
+            List<ScheduleRow> rows = RowsGrid.SelectedItems.OfType<DataRowView>()
+                .Select(row => row["_row"] as ScheduleRow).Where(row => row != null).Cast<ScheduleRow>().ToList();
+            if (rows.Count == 0)
+            {
+                SetStatus("Выберите хотя бы одну строку.");
+                return;
+            }
+            SetStatus("Выбираю элементы в модели...");
+            _requestSelection(rows);
+        }
+        private void OnCloseClick(object sender, RoutedEventArgs e) => Close();
+        private void OnWindowClosing(object sender, System.ComponentModel.CancelEventArgs e)
+        {
+            _disposeController();
         }
     }
 }

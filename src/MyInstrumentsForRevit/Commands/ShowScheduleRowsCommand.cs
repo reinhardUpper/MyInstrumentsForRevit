@@ -44,9 +44,15 @@ namespace MyInstrumentsForRevit.Commands
                     TaskDialog.Show("Строки спецификации", "В спецификации нет строк с элементами модели.");
                     return Result.Cancelled;
                 }
-                var window = new ScheduleRowsWindow(schedule.Name, snapshot.Headers, snapshot.Rows,
-                    row => uiDocument.Selection.SetElementIds(row.ElementIds.ToList()));
-                window.ShowDialog();
+                ScheduleRowsSelectionController? controller = null;
+                var window = new ScheduleRowsWindow(
+                    schedule.Name,
+                    snapshot.Headers,
+                    snapshot.Rows,
+                    rows => controller!.RequestSelection(rows),
+                    () => controller?.Dispose());
+                controller = new ScheduleRowsSelectionController(document, schedule.Id, window.SetStatus);
+                window.Show();
                 return Result.Succeeded;
             }
             catch (Exception exception)

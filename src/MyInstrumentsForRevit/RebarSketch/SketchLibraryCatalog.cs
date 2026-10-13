@@ -25,70 +25,166 @@ namespace MyInstrumentsForRevit.RebarSketch
         {
             if (string.IsNullOrWhiteSpace(libraryPath) || !Directory.Exists(libraryPath))
             {
-                throw new DirectoryNotFoundException("Библиотека эскизов недоступна: " + libraryPath);
+                throw new DirectoryNotFoundException(
+                    "Библиотека эскизов недоступна.\nПуть: " + libraryPath
+                    + "\n\nПроверьте путь, подключение к сети/VPN и права на чтение папки.");
             }
 
             var templatesByForm = new Dictionary<string, SketchTemplate>(StringComparer.OrdinalIgnoreCase);
             var warnings = new List<string>();
-            string[] formFiles = Directory
-                .EnumerateFiles(libraryPath, "form.txt", SearchOption.AllDirectories)
-                .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
-                .ToArray();
+            string[] formFiles;
+            try
+            {
+                formFiles = Directory
+                    .EnumerateFiles(libraryPath, "form.txt", SearchOption.AllDirectories)
+                    .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
+                    .ToArray();
+            }
+            catch (UnauthorizedAccessException exception)
+            {
+                throw new UnauthorizedAccessException(
+                    "Нет прав на чтение структуры библиотеки эскизов.\nПуть: " + libraryPath
+                    + "\n\n" + exception.Message,
+                    exception);
+            }
+            catch (IOException exception)
+            {
+                throw new IOException(
+                    "Не удалось прочитать структуру библиотеки эскизов.\nПуть: " + libraryPath
+                    + "\n\nВозможная причина: сетевой ресурс недоступен или одна из вложенных папок повреждена.\n"
+                    + exception.Message,
+                    exception);
+            }
 
             foreach (string formFile in formFiles)
             {
                 string folder = Path.GetDirectoryName(formFile) ?? libraryPath;
-                string imagePath = FindFile(folder, "sketch.png", "scetch.png");
-                string parametersPath = FindFile(folder, "parameters.txt");
-
-                if (imagePath.Length == 0 || parametersPath.Length == 0)
+                try
                 {
-                    warnings.Add("Пропущена папка без sketch.png или parameters.txt: " + folder);
-                    continue;
-                }
+                    string imagePath = FindFile(folder, "sketch.png", "scetch.png");
+                    string parametersPath = FindFile(folder, "parameters.txt");
 
-                List<string> forms = ReadLines(formFile)
-                    .Select(line => line.Trim().Trim('"'))
-                    .Where(line => line.Length > 0 && !line.StartsWith("#", StringComparison.Ordinal))
-                    .Distinct(StringComparer.OrdinalIgnoreCase)
-                    .ToList();
-
-                if (forms.Count == 0)
-                {
-                    warnings.Add("В form.txt нет форм: " + folder);
-                    continue;
-                }
-
-                List<SketchParameterPlacement> parameters = ParseParameters(parametersPath, warnings);
-                var template = new SketchTemplate(folder, imagePath, forms, parameters);
-
-                foreach (string form in forms)
-                {
-                    string key = NormalizeFormName(form);
-                    if (key.Length == 0)
+                    if (imagePath.Length == 0)
                     {
+                        warnings.Add("Нет sketch.png или scetch.png рядом с form.txt: " + folder);
                         continue;
                     }
 
-                    if (templatesByForm.TryGetValue(key, out SketchTemplate? existing))
+                    List<string> forms = ReadLines(formFile)
+                        .Select(line => line.Trim().Trim('"'))
+                        .Where(line => line.Length > 0 && !line.StartsWith("#", StringComparison.Ordinal))
+                        .Distinct(StringComparer.OrdinalIgnoreCase)
+                        .ToList();
+
+                    if (forms.Count == 0)
                     {
-                        warnings.Add(
-                            "Форма \"" + form + "\" встречается несколько раз; используется "
-                            + existing.FolderPath);
+                        warnings.Add("form.txt пустой или содержит только комментарии: " + folder);
                         continue;
                     }
 
-                    templatesByForm.Add(key, template);
+                    List<SketchParameterPlacement> parameters = parametersPath.Length > 0
+                        ? ParseParameters(parametersPath, warnings)
+                        : new List<SketchParameterPlacement>();
+                    if (parametersPath.Length == 0)
+                    {
+                        warnings.Add("Нет parameters.txt — эскиз будет без подписей параметров: " + folder);
+                    }
+                    var template = new SketchTemplate(folder, imagePath, forms, parameters);
+
+                    foreach (string form in forms)
+                    {
+                        string key = NormalizeFormName(form);
+                        if (key.Length == 0)
+                        {
+                            warnings.Add("Пустое имя формы в form.txt: " + folder);
+                            continue;
+                        }
+
+                        if (templatesByForm.TryGetValue(key, out SketchTemplate? existing))
+                        {
+                            warnings.Add(
+                                "Форма \"" + form + "\" встречается несколько раз; используется "
+                                + existing.FolderPath);
+                            continue;
+                        }
+
+                        templatesByForm.Add(key, template);
+                    }
+                }
+                catch (UnauthorizedAccessException exception)
+                {
+                    warnings.Add("Нет прав на чтение папки: " + folder + " (" + exception.Message + ")");
+                }
+                catch (IOException exception)
+                {
+                    warnings.Add("Не удалось прочитать файлы в папке: " + folder + " (" + exception.Message + ")");
                 }
             }
 
             if (templatesByForm.Count == 0)
             {
-                throw new InvalidDataException(
-                    "В библиотеке не найдено ни одной корректной папки с form.txt, sketch.png и parameters.txt.");
+                throw new InvalidDataException(BuildNoTemplatesMessage(libraryPath, formFiles, warnings));
             }
 
             return new SketchLibraryCatalog(templatesByForm, warnings);
+        }
+
+        private static string BuildNoTemplatesMessage(
+            string libraryPath,
+            IReadOnlyCollection<string> formFiles,
+            IReadOnlyCollection<string> warnings)
+        {
+            var message = new StringBuilder();
+            message.AppendLine("Не удалось загрузить ни одного шаблона эскиза.");
+            message.AppendLine("Путь: " + libraryPath);
+            message.AppendLine("Найдено form.txt: " + formFiles.Count);
+
+            try
+            {
+                LibraryFileCounts counts = CountLibraryFiles(libraryPath);
+                message.AppendLine("Найдено sketch.png: " + counts.SketchCount);
+                message.AppendLine("Найдено scetch.png: " + counts.ScetchCount);
+                message.AppendLine("Найдено parameters.txt: " + counts.ParametersCount);
+            }
+            catch (Exception exception) when (exception is UnauthorizedAccessException || exception is IOException)
+            {
+                message.AppendLine("Не удалось посчитать файлы в библиотеке: " + exception.Message);
+            }
+
+            message.AppendLine();
+            message.AppendLine("Подходящая папка должна содержать form.txt и рядом sketch.png или scetch.png.");
+            if (warnings.Count > 0)
+            {
+                message.AppendLine();
+                message.AppendLine("Причины пропуска папок:");
+                foreach (string warning in warnings.Take(12))
+                {
+                    message.AppendLine("• " + warning);
+                }
+
+                if (warnings.Count > 12)
+                {
+                    message.AppendLine("• …ещё: " + (warnings.Count - 12));
+                }
+            }
+
+            return message.ToString();
+        }
+
+        private static LibraryFileCounts CountLibraryFiles(string libraryPath)
+        {
+            int sketchCount = 0;
+            int scetchCount = 0;
+            int parametersCount = 0;
+            foreach (string path in Directory.EnumerateFiles(libraryPath, "*", SearchOption.AllDirectories))
+            {
+                string name = Path.GetFileName(path);
+                if (name.Equals("sketch.png", StringComparison.OrdinalIgnoreCase)) sketchCount++;
+                else if (name.Equals("scetch.png", StringComparison.OrdinalIgnoreCase)) scetchCount++;
+                else if (name.Equals("parameters.txt", StringComparison.OrdinalIgnoreCase)) parametersCount++;
+            }
+
+            return new LibraryFileCounts(sketchCount, scetchCount, parametersCount);
         }
 
         public bool TryFind(IEnumerable<string> formCandidates, out SketchTemplate? template, out string formName)
@@ -196,6 +292,20 @@ namespace MyInstrumentsForRevit.RebarSketch
 
             normalized = string.Join(" ", normalized.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
             return normalized.Replace('\u0451', '\u0435').Replace('\u0401', '\u0415').ToUpperInvariant();
+        }
+
+        private readonly struct LibraryFileCounts
+        {
+            public LibraryFileCounts(int sketchCount, int scetchCount, int parametersCount)
+            {
+                SketchCount = sketchCount;
+                ScetchCount = scetchCount;
+                ParametersCount = parametersCount;
+            }
+
+            public int SketchCount { get; }
+            public int ScetchCount { get; }
+            public int ParametersCount { get; }
         }
     }
 }

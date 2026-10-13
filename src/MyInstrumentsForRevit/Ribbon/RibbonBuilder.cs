@@ -25,6 +25,7 @@ namespace MyInstrumentsForRevit.Ribbon
             BuildViewDecorationPanel(application);
             BuildViewFiltersPanel(application);
             BuildRebarPanel(application);
+            BuildAutomationPanel(application);
             BuildCommandLinePanel(application);
         }
 
@@ -197,6 +198,22 @@ namespace MyInstrumentsForRevit.Ribbon
                 "MyInstruments_RebarSketch",
                 "\u042D\u0441\u043A\u0438\u0437\u044B\n\u0430\u0440\u043C\u0430\u0442\u0443\u0440\u044B",
                 "\u0412\u044B\u0431\u0438\u0440\u0430\u0435\u0442 \u0441\u043F\u0435\u0446\u0438\u0444\u0438\u043A\u0430\u0446\u0438\u044E \u043D\u0430 \u043B\u0438\u0441\u0442\u0435 \u0438 \u0441\u043E\u0437\u0434\u0430\u0451\u0442 \u044D\u0441\u043A\u0438\u0437\u044B \u0434\u043B\u044F \u0432\u0445\u043E\u0434\u044F\u0449\u0435\u0439 \u0432 \u043D\u0435\u0451 \u0430\u0440\u043C\u0430\u0442\u0443\u0440\u044B.");
+        }
+
+        private static void BuildAutomationPanel(UIControlledApplication application)
+        {
+            RibbonPanel panel = GetOrCreatePanel(application, TabName, "Автоматизация");
+            string assemblyPath = Assembly.GetExecutingAssembly().Location;
+            var data = new PulldownButtonData("MyInstruments_Automation", "Авто\nматизация");
+            PulldownButton button = panel.AddItem(data) as PulldownButton
+                ?? throw new InvalidOperationException("Failed to create automation button.");
+
+            AddPushButton<LinkTitleBlockDatesCommand>(button, assemblyPath, "MyInstruments_LinkTitleBlockDates", "Даты\nосн. надп.", "Связывает даты основной надписи с глобальным параметром «ДАТА».");
+            AddPushButton<FillConsumptionGroupsCommand>(button, assemblyPath, "MyInstruments_FillConsumptionGroups", "Группы\nВРС / ВРБ", "Заполняет группы ВРС и ведомости бетона по самым частым значениям для марок.");
+            AddPushButton<MarkConstructionFromHostCommand>(button, assemblyPath, "MyInstruments_MarkConstructionFromHost", "Марка\nконструкции", "Заполняет Мрк.МаркаКонструкции по пересечению с плитой или стеной на активном виде.");
+            AddPushButton<DimensionFilledRegionsCommand>(button, assemblyPath, "MyInstruments_DimensionFilledRegions", "Размеры\nштриховок", "Создаёт размерные цепочки для прямоугольных штриховок в выбранной группе.");
+            AddPushButton<RenumberSelectedSheetsCommand>(button, assemblyPath, "MyInstruments_RenumberSheets", "Перенумеровать\nлисты", "Перенумеровывает выбранные листы с 1 в порядке текущих номеров.");
+            AddPushButton<CalculateFilledRegionAreasCommand>(button, assemblyPath, "MyInstruments_CalculateFilledRegionAreas", "Площади\nзон", "Считывает площади Filled Region по типам 12 и 14.");
         }
 
         private static void EnsureTab(UIControlledApplication application, string tabName)

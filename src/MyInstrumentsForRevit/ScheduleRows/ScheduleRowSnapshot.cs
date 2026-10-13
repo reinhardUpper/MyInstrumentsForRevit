@@ -36,11 +36,6 @@ namespace MyInstrumentsForRevit.ScheduleRows
                 headers.Add(string.IsNullOrWhiteSpace(title) ? "Столбец " + (column + 1) : title);
             }
 
-            List<Element> elements = new FilteredElementCollector(document, schedule.Id)
-                .WhereElementIsNotElementType().ToElements()
-                .Where(element => element != null && element.IsValidObject)
-                .GroupBy(element => element.Id.IntegerValue).Select(group => group.First()).ToList();
-
             var rows = new List<ScheduleRow>();
             for (int rowNumber = body.FirstRowNumber; rowNumber <= body.LastRowNumber; rowNumber++)
             {
@@ -48,11 +43,30 @@ namespace MyInstrumentsForRevit.ScheduleRows
                     .Select(column => schedule.GetCellText(SectionType.Body, rowNumber, body.FirstColumnNumber + column) ?? string.Empty).ToList();
                 if (cells.All(string.IsNullOrWhiteSpace)) continue;
 
-                List<ElementId> matches = elements.Where(element => MatchesRow(element, body, rowNumber, cells))
-                    .Select(element => element.Id).ToList();
-                rows.Add(new ScheduleRow(cells, matches));
+                rows.Add(new ScheduleRow(rowNumber, cells));
             }
             return new ScheduleRowSnapshot(headers, rows);
+        }
+
+        public static IReadOnlyCollection<ElementId> CollectElementIds(
+            Document document,
+            ViewSchedule schedule,
+            IReadOnlyCollection<ScheduleRow> selectedRows)
+        {
+            if (selectedRows.Count == 0) return Array.Empty<ElementId>();
+            if (!FilteredElementCollector.IsViewValidForElementIteration(document, schedule.Id))
+                throw new InvalidOperationException("Revit не позволяет получить элементы этой спецификации.");
+
+            TableSectionData body = schedule.GetTableData().GetSectionData(SectionType.Body);
+            List<Element> elements = new FilteredElementCollector(document, schedule.Id)
+                .WhereElementIsNotElementType().ToElements()
+                .Where(element => element != null && element.IsValidObject)
+                .GroupBy(element => element.Id.IntegerValue).Select(group => group.First()).ToList();
+
+            return elements
+                .Where(element => selectedRows.Any(row => MatchesRow(element, body, row.RowNumber, row.Cells)))
+                .Select(element => element.Id)
+                .ToList();
         }
 
         private static bool MatchesRow(Element element, TableSectionData body, int rowNumber, IReadOnlyList<string> cells)
@@ -89,12 +103,12 @@ namespace MyInstrumentsForRevit.ScheduleRows
 
     internal sealed class ScheduleRow
     {
-        public ScheduleRow(IReadOnlyList<string> cells, IReadOnlyCollection<ElementId> elementIds)
+        public ScheduleRow(int rowNumber, IReadOnlyList<string> cells)
         {
+            RowNumber = rowNumber;
             Cells = cells;
-            ElementIds = elementIds;
         }
+        public int RowNumber { get; }
         public IReadOnlyList<string> Cells { get; }
-        public IReadOnlyCollection<ElementId> ElementIds { get; }
     }
 }
