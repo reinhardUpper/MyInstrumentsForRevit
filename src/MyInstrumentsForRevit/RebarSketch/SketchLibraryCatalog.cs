@@ -32,11 +32,15 @@ namespace MyInstrumentsForRevit.RebarSketch
 
             var templatesByForm = new Dictionary<string, SketchTemplate>(StringComparer.OrdinalIgnoreCase);
             var warnings = new List<string>();
-            string[] formFiles;
+            string[] templateFolders;
             try
             {
-                formFiles = Directory
-                    .EnumerateFiles(libraryPath, "form.txt", SearchOption.AllDirectories)
+                templateFolders = Directory
+                    .EnumerateFiles(libraryPath, "*.txt", SearchOption.AllDirectories)
+                    .Where(path => Path.GetFileName(path).Equals("families.txt", StringComparison.OrdinalIgnoreCase)
+                        || Path.GetFileName(path).Equals("form.txt", StringComparison.OrdinalIgnoreCase))
+                    .Select(path => Path.GetDirectoryName(path) ?? libraryPath)
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
                     .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
                     .ToArray();
             }
@@ -56,17 +60,19 @@ namespace MyInstrumentsForRevit.RebarSketch
                     exception);
             }
 
-            foreach (string formFile in formFiles)
+            foreach (string folder in templateFolders)
             {
-                string folder = Path.GetDirectoryName(formFile) ?? libraryPath;
                 try
                 {
-                    string imagePath = FindFile(folder, "sketch.png", "scetch.png");
+                    // Each folder is a separate template, even when it also contains child templates.
+                    string formFile = FindFile(folder, "families.txt", "form.txt");
+                    string formFileName = Path.GetFileName(formFile);
+                    string imagePath = FindFile(folder, "scetch.png", "sketch.png");
                     string parametersPath = FindFile(folder, "parameters.txt");
 
                     if (imagePath.Length == 0)
                     {
-                        warnings.Add("Нет sketch.png или scetch.png рядом с form.txt: " + folder);
+                        warnings.Add("Нет scetch.png или sketch.png рядом с " + formFileName + ": " + folder);
                         continue;
                     }
 
@@ -78,7 +84,7 @@ namespace MyInstrumentsForRevit.RebarSketch
 
                     if (forms.Count == 0)
                     {
-                        warnings.Add("form.txt пустой или содержит только комментарии: " + folder);
+                        warnings.Add(formFileName + " пустой или содержит только комментарии: " + folder);
                         continue;
                     }
 
@@ -96,14 +102,14 @@ namespace MyInstrumentsForRevit.RebarSketch
                         string key = NormalizeFormName(form);
                         if (key.Length == 0)
                         {
-                            warnings.Add("Пустое имя формы в form.txt: " + folder);
+                            warnings.Add("Пустое имя семейства или формы в " + formFileName + ": " + folder);
                             continue;
                         }
 
                         if (templatesByForm.TryGetValue(key, out SketchTemplate? existing))
                         {
                             warnings.Add(
-                                "Форма \"" + form + "\" встречается несколько раз; используется "
+                                "Семейство или форма \"" + form + "\" встречается несколько раз; используется "
                                 + existing.FolderPath);
                             continue;
                         }
@@ -123,7 +129,7 @@ namespace MyInstrumentsForRevit.RebarSketch
 
             if (templatesByForm.Count == 0)
             {
-                throw new InvalidDataException(BuildNoTemplatesMessage(libraryPath, formFiles, warnings));
+                throw new InvalidDataException(BuildNoTemplatesMessage(libraryPath, templateFolders, warnings));
             }
 
             return new SketchLibraryCatalog(templatesByForm, warnings);
@@ -131,17 +137,19 @@ namespace MyInstrumentsForRevit.RebarSketch
 
         private static string BuildNoTemplatesMessage(
             string libraryPath,
-            IReadOnlyCollection<string> formFiles,
+            IReadOnlyCollection<string> templateFolders,
             IReadOnlyCollection<string> warnings)
         {
             var message = new StringBuilder();
             message.AppendLine("Не удалось загрузить ни одного шаблона эскиза.");
             message.AppendLine("Путь: " + libraryPath);
-            message.AppendLine("Найдено form.txt: " + formFiles.Count);
+            message.AppendLine("Папок с families.txt или form.txt: " + templateFolders.Count);
 
             try
             {
                 LibraryFileCounts counts = CountLibraryFiles(libraryPath);
+                message.AppendLine("Найдено families.txt: " + counts.FamiliesCount);
+                message.AppendLine("Найдено form.txt: " + counts.FormCount);
                 message.AppendLine("Найдено sketch.png: " + counts.SketchCount);
                 message.AppendLine("Найдено scetch.png: " + counts.ScetchCount);
                 message.AppendLine("Найдено parameters.txt: " + counts.ParametersCount);
@@ -152,7 +160,7 @@ namespace MyInstrumentsForRevit.RebarSketch
             }
 
             message.AppendLine();
-            message.AppendLine("Подходящая папка должна содержать form.txt и рядом sketch.png или scetch.png.");
+            message.AppendLine("Подходящая папка должна содержать families.txt (или form.txt), scetch.png (или sketch.png) и parameters.txt.");
             if (warnings.Count > 0)
             {
                 message.AppendLine();
@@ -176,15 +184,19 @@ namespace MyInstrumentsForRevit.RebarSketch
             int sketchCount = 0;
             int scetchCount = 0;
             int parametersCount = 0;
+            int familiesCount = 0;
+            int formCount = 0;
             foreach (string path in Directory.EnumerateFiles(libraryPath, "*", SearchOption.AllDirectories))
             {
                 string name = Path.GetFileName(path);
                 if (name.Equals("sketch.png", StringComparison.OrdinalIgnoreCase)) sketchCount++;
                 else if (name.Equals("scetch.png", StringComparison.OrdinalIgnoreCase)) scetchCount++;
                 else if (name.Equals("parameters.txt", StringComparison.OrdinalIgnoreCase)) parametersCount++;
+                else if (name.Equals("families.txt", StringComparison.OrdinalIgnoreCase)) familiesCount++;
+                else if (name.Equals("form.txt", StringComparison.OrdinalIgnoreCase)) formCount++;
             }
 
-            return new LibraryFileCounts(sketchCount, scetchCount, parametersCount);
+            return new LibraryFileCounts(sketchCount, scetchCount, parametersCount, familiesCount, formCount);
         }
 
         public bool TryFind(IEnumerable<string> formCandidates, out SketchTemplate? template, out string formName)
@@ -296,16 +308,22 @@ namespace MyInstrumentsForRevit.RebarSketch
 
         private readonly struct LibraryFileCounts
         {
-            public LibraryFileCounts(int sketchCount, int scetchCount, int parametersCount)
+            public LibraryFileCounts(int sketchCount, int scetchCount, int parametersCount, int familiesCount, int formCount)
             {
                 SketchCount = sketchCount;
                 ScetchCount = scetchCount;
                 ParametersCount = parametersCount;
+                FamiliesCount = familiesCount;
+                FormCount = formCount;
             }
 
             public int SketchCount { get; }
             public int ScetchCount { get; }
             public int ParametersCount { get; }
+
+            public int FamiliesCount { get; }
+
+            public int FormCount { get; }
         }
     }
 }

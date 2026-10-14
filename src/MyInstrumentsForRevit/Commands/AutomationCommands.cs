@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
-using System.Text.RegularExpressions;
 using Autodesk.Revit.Attributes;
 using Autodesk.Revit.DB;
 using Autodesk.Revit.UI;
@@ -128,36 +127,6 @@ namespace MyInstrumentsForRevit.Commands
             TaskDialog.Show("Даты основной надписи", "Глобальный параметр: " + global.Name + "\nСоздано связей: " + linked + "\nУже связаны: " + same + "\nНельзя связать: " + unavailable);
             return Result.Succeeded;
         }
-    }
-
-    [Transaction(TransactionMode.Manual)]
-    public class RenumberSelectedSheetsCommand : IExternalCommand
-    {
-        private const string Invisible = "\u200B";
-        public Result Execute(ExternalCommandData data, ref string message, ElementSet elements)
-        {
-            UIDocument uiDocument = data.Application.ActiveUIDocument; Document document = uiDocument.Document;
-            List<ViewSheet> sheets = uiDocument.Selection.GetElementIds().Select(document.GetElement).OfType<ViewSheet>()
-                .OrderBy(sheet => NaturalKey(sheet.SheetNumber)).ToList();
-            if (sheets.Count == 0) { TaskDialog.Show("Перенумерация листов", "Выделите листы в диспетчере проекта."); return Result.Cancelled; }
-            var selected = new HashSet<int>(sheets.Select(item => item.Id.IntegerValue));
-            var occupied = new HashSet<string>(new FilteredElementCollector(document).OfClass(typeof(ViewSheet)).Cast<ViewSheet>().Where(item => !selected.Contains(item.Id.IntegerValue)).Select(item => item.SheetNumber));
-            using (var transaction = new Transaction(document, "Перенумерация листов"))
-            {
-                transaction.Start();
-                for (int index = 0; index < sheets.Count; index++) sheets[index].SheetNumber = "__TEMP_" + sheets[index].Id.IntegerValue + "_" + index + "__";
-                document.Regenerate();
-                for (int index = 0; index < sheets.Count; index++)
-                {
-                    string number = (index + 1).ToString(CultureInfo.InvariantCulture); while (occupied.Contains(number)) number += Invisible;
-                    sheets[index].SheetNumber = number; occupied.Add(number);
-                }
-                transaction.Commit();
-            }
-            TaskDialog.Show("Перенумерация листов", "Перенумеровано листов: " + sheets.Count + "\nДиапазон: 1–" + sheets.Count);
-            return Result.Succeeded;
-        }
-        private static string NaturalKey(string value) => Regex.Replace(value ?? string.Empty, "\\d+", match => match.Value.PadLeft(12, '0'));
     }
 
     [Transaction(TransactionMode.ReadOnly)]
